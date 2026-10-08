@@ -41,6 +41,11 @@ htmlcov/
 *~
 .DS_Store
 
+# Next.js
+.next/
+node_modules/
+out/
+
 # Terraform
 .terraform/
 *.tfstate

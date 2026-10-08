@@ -158,6 +158,34 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 ## 🚀 Next Steps
 
+### Run the Next.js frontend against the in-repo FastAPI backend
+
+The Next.js API route forwards generation requests to the FastAPI endpoint at
+`POST http://127.0.0.1:8000/api/jd/generate`. In development, this URL is used
+automatically unless `JD_CREATOR_API_URL` is set. Mock mode is off by default.
+
+Start the in-repo demo backend in one terminal:
+
+```bash
+python app_simple.py
+```
+
+Start the Next.js frontend in another terminal:
+
+```bash
+npm install
+npm run dev
+```
+
+Open `http://localhost:3000`. Requests from the page go through the Next.js
+server-side proxy, so the browser does not need direct access to the backend.
+For another backend URL, set `JD_CREATOR_API_URL` in `.env.local` (for example,
+`JD_CREATOR_API_URL=http://127.0.0.1:8000`) and restart Next.js. Set
+`JD_CREATOR_USE_MOCK=true` only when intentionally using the frontend sample
+response. The `app_simple.py` backend returns deterministic demo content; use
+`app.main:app` with the required AWS/Bedrock configuration for model-backed
+generation.
+
 ### To Use with Real Bedrock:
 1. Set up AWS credentials (see `AWS_SETUP.md`)
 2. Enable Bedrock model access in AWS console
