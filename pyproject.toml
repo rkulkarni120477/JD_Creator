@@ -1,0 +1,45 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jd-creator"
+version = "0.1.0"
+description = "Turn hiring requirements into professional job descriptions using LLMs"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "JD Creator Contributors" }]
+license = { text = "MIT" }
+
+dependencies = [
+    "fastapi>=0.143.0,<0.144",
+    "pydantic>=2.13.5,<3",
+    "pydantic-settings>=2.15.0,<3",
+    "uvicorn[standard]>=0.54.0,<0.55",
+    "langchain-core>=1.6.7,<2",
+    "langchain-aws>=1.8.1,<2",
+    "boto3>=1.43.109,<2",
+    "python-multipart>=0.0.6",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=9.1.1,<10",
+    "pytest-asyncio>=1.4.0,<2",
+    "httpx>=0.28.1,<1",
+    "ruff>=0.7.0",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v -m 'not bedrock_smoke'"
+markers = ["bedrock_smoke: real Bedrock integration tests, skipped by default"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "C4", "SIM"]
+ignore = ["E501"]

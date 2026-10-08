@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JD Creator - Professional Job Description Generator</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1 class="title">JD Creator</h1>
+            <p class="subtitle">Turn your hiring requirements into a professional job description</p>
+        </header>
+
+        <main class="main-content">
+            <form id="generateForm" class="form">
+                <!-- Main requirement input -->
+                <div class="form-group">
+                    <label for="prompt" class="form-label">Describe the role you want to hire for</label>
+                    <textarea
+                        id="prompt"
+                        name="prompt"
+                        class="textarea"
+                        placeholder="e.g., Senior Python Developer with 5–8 years of experience in Python, FastAPI, LangChain, AWS Bedrock, Docker, and PostgreSQL. Based in Bengaluru, hybrid work arrangement."
+                        required
+                        minlength="10"
+                        maxlength="5000"
+                        aria-describedby="examplePrompts"
+                    ></textarea>
+                </div>
+
+                <!-- Example prompts -->
+                <div id="examplePrompts" class="example-prompts">
+                    <span>Quick examples:</span>
+                    <button type="button" class="example-chip" data-example="Create a job description for a Senior Python Developer with 5–8 years of experience in Python, FastAPI, LangChain, AWS Bedrock, Docker, and PostgreSQL. The role is based in Bengaluru with a hybrid work arrangement. The candidate should mentor junior developers and build production AI applications.">Senior Python Developer</button>
+                    <button type="button" class="example-chip" data-example="Frontend Engineer with 3–5 years of React.js, TypeScript, and modern CSS experience. Remote first, full-time. Collaborate with design and backend teams to build responsive web applications.">Frontend Engineer</button>
+                    <button type="button" class="example-chip" data-example="Product Manager with 5+ years of experience in B2B SaaS, product strategy, and data-driven decision making. Lead cross-functional teams. Based in San Francisco or remote.">Product Manager</button>
+                </div>
+
+                <!-- Optional details (collapsible) -->
+                <details class="optional-details">
+                    <summary class="optional-summary">Optional: Specify details that override your description</summary>
+
+                    <div class="optional-fields">
+                        <p class="optional-note">Values here override conflicting text in your description</p>
+
+                        <div class="form-group">
+                            <label for="jobTitle" class="form-label">Job Title</label>
+                            <input
+                                id="jobTitle"
+                                type="text"
+                                name="job_title"
+                                class="input"
+                                maxlength="200"
+                                placeholder="e.g., Senior Python Developer"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="technologies" class="form-label">Technologies (comma-separated)</label>
+                            <input
+                                id="technologies"
+                                type="text"
+                                name="technologies"
+                                class="input"
+                                placeholder="e.g., Python, FastAPI, LangChain, AWS, Docker"
+                            >
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="expMin" class="form-label">Min. Experience (years)</label>
+                                <input
+                                    id="expMin"
+                                    type="number"
+                                    name="experience_min"
+                                    class="input"
+                                    min="0"
+                                    placeholder="e.g., 5"
+                                >
+                            </div>
+                            <div class="form-group">
+                                <label for="expMax" class="form-label">Max. Experience (years)</label>
+                                <input
+                                    id="expMax"
+                                    type="number"
+                                    name="experience_max"
+                                    class="input"
+                                    min="0"
+                                    placeholder="e.g., 8"
+                                >
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="location" class="form-label">Location</label>
+                            <input
+                                id="location"
+                                type="text"
+                                name="location"
+                                class="input"
+                                maxlength="200"
+                                placeholder="e.g., Bengaluru, India"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="workArrangement" class="form-label">Work Arrangement</label>
+                            <select id="workArrangement" name="work_arrangement" class="input">
+                                <option value="">Not specified</option>
+                                <option value="remote">Remote</option>
+                                <option value="hybrid">Hybrid</option>
+                                <option value="onsite">On-site</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="employmentType" class="form-label">Employment Type</label>
+                            <select id="employmentType" name="employment_type" class="input">
+                                <option value="">Not specified</option>
+                                <option value="full-time">Full-time</option>
+                                <option value="part-time">Part-time</option>
+                                <option value="contract">Contract</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="industry" class="form-label">Industry / Domain</label>
+                            <input
+                                id="industry"
+                                type="text"
+                                name="industry"
+                                class="input"
+                                maxlength="200"
+                                placeholder="e.g., EdTech, SaaS, Healthcare"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="companyName" class="form-label">Company Name</label>
+                            <input
+                                id="companyName"
+                                type="text"
+                                name="company_name"
+                                class="input"
+                                maxlength="200"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="companyDescription" class="form-label">Company Description</label>
+                            <textarea
+                                id="companyDescription"
+                                name="company_description"
+                                class="textarea small"
+                                maxlength="1000"
+                                placeholder="Brief description of the company"
+                            ></textarea>
+                        </div>
+                    </div>
+                </details>
+
+                <!-- Tone selection -->
+                <div class="form-group">
+                    <label for="tone" class="form-label">Writing Tone</label>
+                    <select id="tone" name="tone" class="input">
+                        <option value="professional" selected>Professional</option>
+                        <option value="concise">Concise</option>
+                        <option value="detailed">Detailed</option>
+                    </select>
+                </div>
+
+                <!-- Submit button -->
+                <button
+                    type="submit"
+                    id="submitBtn"
+                    class="btn btn-primary"
+                    aria-busy="false"
+                >
+                    Search / Generate JD
+                </button>
+            </form>
+
+            <!-- Status message -->
+            <div id="statusMessage" class="status-message" role="status" aria-live="polite"></div>
+
+            <!-- Error message -->
+            <div id="errorMessage" class="error-message" role="alert" aria-live="assertive"></div>
+
+            <!-- Results section -->
+            <div id="resultsSection" class="results-section" style="display: none;">
+                <div class="results-actions">
+                    <button id="copyBtn" class="btn btn-secondary" title="Copy to clipboard">
+                        📋 Copy
+                    </button>
+                    <button id="downloadBtn" class="btn btn-secondary" title="Download as Markdown">
+                        ⬇️ Download
+                    </button>
+                    <button id="regenerateBtn" class="btn btn-secondary" title="Generate again with same requirements">
+                        🔄 Regenerate
+                    </button>
+                    <button id="clearBtn" class="btn btn-secondary" title="Clear form and results">
+                        ✕ Clear
+                    </button>
+                </div>
+
+                <!-- Job description content -->
+                <div id="jdContent" class="jd-content"></div>
+
+                <!-- Assumptions and missing details -->
+                <div id="assumptionsSection" class="assumptions-section" style="display: none;">
+                    <h3>Assumptions and Missing Details</h3>
+                    <div id="assumptionsContent"></div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>JD Creator v0.1.0 · <a href="https://github.com/your-repo" target="_blank">GitHub</a></p>
+        </footer>
+    </div>
+
+    <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,23 @@
+# JD Creator Terraform Configuration Example
+# Copy this to terraform.tfvars and fill in your values
+
+aws_region       = "us-east-1"
+environment      = "dev"
+bedrock_model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+
+# VPC Configuration
+create_vpc                  = true
+vpc_cidr                    = "10.0.0.0/16"
+public_subnet_cidrs         = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs        = ["10.0.10.0/24", "10.0.11.0/24"]
+create_bedrock_vpc_endpoint = false  # Use NAT gateway for Bedrock connectivity
+
+# ECS Configuration
+task_cpu       = "256"
+task_memory    = "512"
+desired_count  = 1
+log_retention_days = 7
+
+# Production Configuration (optional)
+domain_name   = ""  # "jd-creator.example.com"
+certificate_arn = ""  # "arn:aws:acm:us-east-1:123456789012:certificate/xxx"
