@@ -11,17 +11,23 @@ class JobDetails(BaseModel):
     experience_max: int | None = Field(None, ge=0)
     location: str | None = Field(None, max_length=200)
     work_arrangement: str | None = Field(None)  # remote, hybrid, onsite
-    employment_type: str | None = Field(None)  # full-time, part-time, contract
+    employment_type: str | None = Field(None, max_length=100)  # one or more of: full-time, part-time, contract
     industry: str | None = Field(None, max_length=200)
     company_name: str | None = Field(None, max_length=200)
     company_description: str | None = Field(None, max_length=1000)
+    client_context: str | None = Field(None, max_length=1000)  # client, project or initiative the role supports
+    education: str | None = Field(None, max_length=500)
+    preferred_background: list[str] = Field(default_factory=list, max_length=15)  # sectors/domains, e.g. EdTech
+    collaborators: list[str] = Field(default_factory=list, max_length=15)  # teams/roles worked with
+    engagement_details: str | None = Field(None, max_length=500)  # hours, duration, flexibility
+    work_environment: str | None = Field(None, max_length=500)
 
-    @field_validator("technologies", mode="before")
+    @field_validator("technologies", "preferred_background", "collaborators", mode="before")
     @classmethod
-    def validate_technologies(cls, v):
+    def validate_short_lists(cls, v):
         if not isinstance(v, list):
             return v
-        return [t[:60] for t in v if t]  # Trim each tech to 60 chars
+        return [t.strip()[:60] for t in v if t and t.strip()]  # Trim each entry to 60 chars
 
     @field_validator("experience_max")
     @classmethod
@@ -73,17 +79,52 @@ class JobDescription(BaseModel):
 
     job_title: str | None = None
     role_summary: str | None = None
-    company_overview: str | None = None
+    company_overview: str | None = Field(
+        None,
+        description=(
+            "Only facts from the supplied company description; null when none was supplied. "
+            "Never describe what the company does from its name alone."
+        ),
+    )
+    project_context: str | None = Field(
+        None, description="The client, project or initiative this role supports, only if supplied by the user."
+    )
     location: str | None = None
     work_arrangement: str | None = None
-    employment_type: str | None = None
-    experience: str | None = None
+    employment_type: str | None = Field(
+        None, description="One or more employment types, e.g. 'Contract or Part-time'."
+    )
+    experience: str | None = Field(None, description="e.g. '5+ years' or '2–4 years'; null when unspecified.")
     responsibilities: list[str] = Field(default_factory=list)
     required_qualifications: list[str] = Field(default_factory=list)
+    education_requirements: list[str] = Field(
+        default_factory=list,
+        description="Degree or field-of-study requirements, only as supplied by the user; mark preferred ones as such.",
+    )
     preferred_qualifications: list[str] = Field(default_factory=list)
-    technical_skills: list[str] = Field(default_factory=list)
+    technical_skills: list[str] = Field(
+        default_factory=list,
+        description=(
+            "A distinct tools/technology list. Must not repeat any tool already named in required_qualifications "
+            "or preferred_qualifications; leave empty when every tool is already covered there or the role is "
+            "not tool-centric."
+        ),
+    )
+    engagement_details: str | None = Field(
+        None, description="Contract terms such as hours, duration, schedule flexibility, only as supplied."
+    )
+    work_environment: list[str] = Field(
+        default_factory=list, description="How and where the work happens, e.g. async/remote collaboration, check-ins."
+    )
     compensation_and_benefits: str | None = None
     application_instructions: str | None = None
+    closing_statement: str | None = Field(
+        None,
+        description=(
+            "A short closing invitation to apply that refers only to this role and its domain. "
+            "Do not include links or contact details that were not supplied."
+        ),
+    )
 
 
 class JDModelOutput(BaseModel):

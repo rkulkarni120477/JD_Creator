@@ -4,7 +4,7 @@ from typing import Any
 
 import boto3
 from botocore.config import Config
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, NoCredentialsError, ProfileNotFound
 from langchain_aws import ChatBedrockConverse
 from langchain_core.exceptions import OutputParserException
 
@@ -39,25 +39,21 @@ class BedrockService:
             region_name=self.settings.aws_region,
         )
 
-        # Configure with timeouts and minimal retries (app-level retry owns backoff)
+        # botocore "standard" mode retries throttling/transient errors with exponential backoff and jitter
         botocore_config = Config(
             read_timeout=self.settings.bedrock_request_timeout_seconds,
-            retries={"max_attempts": 1},
+            retries={"max_attempts": max(1, self.settings.bedrock_max_retries), "mode": "standard"},
         )
 
         # Create Bedrock client
         client = session.client("bedrock-runtime", config=botocore_config)
 
         # Create LangChain model
-        model_kwargs = {
-            "temperature": self.settings.bedrock_temperature,
-            "max_tokens": self.settings.bedrock_max_tokens,
-        }
-
         self._model = ChatBedrockConverse(
             model_id=self.settings.bedrock_model_id,
             client=client,
-            model_kwargs=model_kwargs,
+            temperature=self.settings.bedrock_temperature,
+            max_tokens=self.settings.bedrock_max_tokens,
         )
 
         return self._model
@@ -83,12 +79,12 @@ class BedrockService:
         """
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        model = self._create_model()
-
-        # Apply structured output
-        structured_model = model.with_structured_output(response_schema, include_raw=True)
-
         try:
+            model = self._create_model()
+
+            # Apply structured output
+            structured_model = model.with_structured_output(response_schema, include_raw=True)
+
             # Convert message dicts to LangChain message objects
             lc_messages = []
             for msg in messages:
@@ -98,7 +94,7 @@ class BedrockService:
                     lc_messages.append(HumanMessage(content=msg["content"]))
 
             # Run in executor to avoid blocking event loop
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             result = await asyncio.wait_for(
                 loop.run_in_executor(None, structured_model.invoke, lc_messages),
                 timeout=self.settings.overall_deadline_seconds,
@@ -106,12 +102,19 @@ class BedrockService:
 
             # Extract structured data and usage
             structured_data = result.get("parsed") if isinstance(result, dict) else result.parsed
+            if structured_data is None and isinstance(result, dict):
+                # include_raw=True reports parse failures as parsed=None; hand back the raw tool arguments
+                # so the caller can validate them and feed the specific errors into its repair attempt
+                structured_data = self._raw_tool_arguments(result.get("raw"))
+                logger.warning(f"Structured output parsing failed: {result.get('parsing_error')}")
             usage = self._extract_usage_metadata(result)
 
             return structured_data, usage
 
         except asyncio.TimeoutError:
             raise RequestTimeout("Bedrock request timed out", "")
+        except (NoCredentialsError, ProfileNotFound) as e:
+            raise ModelAccessDenied(f"AWS credentials are not configured for Bedrock: {e}", "")
         except ClientError as e:
             self._handle_client_error(e)
         except OutputParserException as e:
@@ -120,6 +123,14 @@ class BedrockService:
                 f"Failed to parse model output: {str(e)}",
                 "",
             )
+
+    @staticmethod
+    def _raw_tool_arguments(raw: Any) -> dict[str, Any] | None:
+        """Return the arguments of the first tool call on a raw AI message, if any."""
+        tool_calls = getattr(raw, "tool_calls", None) or []
+        if tool_calls and isinstance(tool_calls[0], dict):
+            return tool_calls[0].get("args")
+        return None
 
     def _extract_usage_metadata(self, response: Any) -> dict[str, Any] | None:
         """Defensively extract usage metadata from model response."""
@@ -158,8 +169,12 @@ class BedrockService:
 
         if error_code in ("AccessDeniedException", "UnauthorizedException"):
             raise ModelAccessDenied(f"Access denied to model: {message}", "")
-        elif error_code == "ValidationException":
-            raise ModelAccessDenied(f"Model not available: {message}", "")
+        elif error_code in ("ValidationException", "ResourceNotFoundException"):
+            raise ModelAccessDenied(
+                f"Model '{self.settings.bedrock_model_id}' is not available: {message} "
+                "Check JD_BEDROCK_MODEL_ID.",
+                "",
+            )
         elif error_code == "ThrottlingException":
             raise ThrottledException("Bedrock is throttling requests. Please retry shortly.", "")
         elif error_code == "ServiceUnavailableException":

@@ -88,13 +88,62 @@ async def test_generate_jd_with_repair(jd_service, bedrock_service):
 async def test_generate_jd_repair_fails(jd_service, bedrock_service):
     """Test JD generation when repair fails."""
     bedrock_service.invoke_with_structured_output = AsyncMock(
-        side_effect=ValidationError.from_exception_data("JDModelOutput", [])
+        side_effect=[({"invalid": "data"}, None), ({"still": "invalid"}, None)]
     )
 
     request = GenerateRequest(prompt="Senior Python developer for AI work")
 
     with pytest.raises(MalformedModelOutput):
         await jd_service.generate_jd(request)
+
+
+@pytest.mark.asyncio
+async def test_generate_jd_repairs_unparsed_output(jd_service, bedrock_service):
+    """A parse failure (parsed=None) triggers a repair instead of returning None."""
+    valid_output = JDModelOutput(job_description=JobDescription(job_title="Developer"))
+    bedrock_service.invoke_with_structured_output = AsyncMock(
+        side_effect=[(None, None), (valid_output, None)]
+    )
+
+    result = await jd_service.generate_jd(GenerateRequest(prompt="Senior Python developer for AI work"))
+
+    assert result.job_description.job_title == "Developer"
+    repair_prompt = bedrock_service.invoke_with_structured_output.call_args_list[1].args[0][-1]["content"]
+    assert "(no structured output)" in repair_prompt
+
+
+@pytest.mark.parametrize(
+    ("minimum", "maximum", "expected"),
+    [(5, None, "5+ years"), (2, 4, "2–4 years"), (0, 2, "0–2 years"), (3, 3, "3 years"), (None, 4, "up to 4 years")],
+)
+def test_experience_formatting(minimum, maximum, expected):
+    assert JDService._format_experience(minimum, maximum) == expected
+
+
+def test_new_structured_fields_reach_prompt(jd_service):
+    """Client context, education, background, collaborators, engagement and environment are sent to the model."""
+    request = GenerateRequest(
+        prompt="Business analyst for a content pipeline modernization",
+        details=JobDetails(
+            employment_type="Contract, Part-time",
+            client_context="Client is modernizing its content pipeline",
+            education="Bachelor's in Statistics",
+            preferred_background=["EdTech", "publishing"],
+            collaborators=["Content Strategists", "Engineering"],
+            engagement_details="Flexible hours based on project needs",
+            work_environment="Asynchronous and remote",
+        ),
+    )
+
+    user_message = jd_service._build_messages(request)[1]["content"]
+
+    assert "- Employment Type: contract, part-time" in user_message
+    assert "- Client / Project Context: Client is modernizing its content pipeline" in user_message
+    assert "- Education: Bachelor's in Statistics" in user_message
+    assert "- Preferred Sector Background: EdTech, publishing" in user_message
+    assert "- Works With: Content Strategists, Engineering" in user_message
+    assert "- Engagement Details: Flexible hours based on project needs" in user_message
+    assert "- Work Environment: Asynchronous and remote" in user_message
 
 
 @pytest.mark.asyncio

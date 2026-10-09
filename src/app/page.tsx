@@ -8,14 +8,20 @@ import { EmptyState } from '@/components/EmptyState';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { ExamplePrompts } from '@/components/ExamplePrompts';
 import { downloadMarkdown, downloadPdf, downloadText } from '@/lib/jd-export';
-import { formatJobDescriptionMarkdown } from '@/lib/jd-formatters';
+import { getJobDescriptionMetadata, getJobDescriptionSections } from '@/lib/jd-formatters';
 import { isValidPrompt, MIN_PROMPT_LENGTH, normalizeJobDescription } from '@/lib/jd-schema';
 import type { ApiError, GenerationResult } from '@/types/job-description';
 
 const examplePrompts = [
   'Senior Python Developer with 5-8 years of Python, FastAPI, AWS, Docker, and PostgreSQL experience. Based in Bengaluru with a hybrid work arrangement.',
-  'Frontend Engineer with 3-5 years of React, TypeScript, and design systems experience. Remote-first role focused on accessibility and performance.',
-  'Product Manager with 5+ years of B2B SaaS experience, strong stakeholder communication, and a data-driven approach to planning and prioritization.'
+  'Business Analyst with 5+ years of experience to lead stakeholder interviews and requirements gathering for modernizing a client\'s print and digital content pipeline. Experience with taxonomies and metadata models is a plus.',
+  'Data Analyst with 2-4 years of experience for a market research project validating career readiness courses. Analyze surveys, focus groups and labor market data (IPEDS, BLS); advanced Excel is mandatory.'
+];
+
+const employmentTypeOptions = [
+  { value: 'full-time', label: 'Full-time' },
+  { value: 'part-time', label: 'Part-time' },
+  { value: 'contract', label: 'Contract' }
 ];
 
 type FormState = {
@@ -26,11 +32,19 @@ type FormState = {
   experience_max: string;
   location: string;
   work_arrangement: string;
-  employment_type: string;
+  employment_types: string[];
   industry: string;
   company_name: string;
   company_description: string;
+  client_context: string;
+  education: string;
+  preferred_background: string;
+  collaborators: string;
+  engagement_details: string;
+  work_environment: string;
 };
+
+type TextField = Exclude<keyof FormState, 'employment_types'>;
 
 const initialState: FormState = {
   prompt: '',
@@ -40,11 +54,24 @@ const initialState: FormState = {
   experience_max: '',
   location: '',
   work_arrangement: '',
-  employment_type: '',
+  employment_types: [],
   industry: '',
   company_name: '',
-  company_description: ''
+  company_description: '',
+  client_context: '',
+  education: '',
+  preferred_background: '',
+  collaborators: '',
+  engagement_details: '',
+  work_environment: ''
 };
+
+function splitList(value: string): string[] {
+  return value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
 
 export default function HomePage() {
   const [form, setForm] = useState<FormState>(initialState);
@@ -54,8 +81,17 @@ export default function HomePage() {
 
   const promptLengthLabel = useMemo(() => `${form.prompt.trim().length} / ${Math.max(MIN_PROMPT_LENGTH, 5000)}`, [form.prompt]);
 
-  function updateField(field: keyof FormState, value: string) {
+  function updateField(field: TextField, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function toggleEmploymentType(value: string) {
+    setForm((current) => ({
+      ...current,
+      employment_types: current.employment_types.includes(value)
+        ? current.employment_types.filter((entry) => entry !== value)
+        : [...current.employment_types, value]
+    }));
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -75,18 +111,26 @@ export default function HomePage() {
         prompt: form.prompt.trim(),
         details: {
           job_title: form.job_title.trim() || undefined,
-          technologies: form.technologies
-            .split(',')
-            .map((entry) => entry.trim())
-            .filter(Boolean),
+          technologies: splitList(form.technologies),
           experience_min: form.experience_min ? Number(form.experience_min) : undefined,
           experience_max: form.experience_max ? Number(form.experience_max) : undefined,
           location: form.location.trim() || undefined,
           work_arrangement: form.work_arrangement || undefined,
-          employment_type: form.employment_type || undefined,
+          // Keep the option order stable so "contract, part-time" reads the same regardless of click order
+          employment_type:
+            employmentTypeOptions
+              .filter((option) => form.employment_types.includes(option.value))
+              .map((option) => option.value)
+              .join(', ') || undefined,
           industry: form.industry.trim() || undefined,
           company_name: form.company_name.trim() || undefined,
-          company_description: form.company_description.trim() || undefined
+          company_description: form.company_description.trim() || undefined,
+          client_context: form.client_context.trim() || undefined,
+          education: form.education.trim() || undefined,
+          preferred_background: splitList(form.preferred_background),
+          collaborators: splitList(form.collaborators),
+          engagement_details: form.engagement_details.trim() || undefined,
+          work_environment: form.work_environment.trim() || undefined
         },
         tone: 'professional'
       };
@@ -138,7 +182,8 @@ export default function HomePage() {
     setResult(null);
   }
 
-  const jdSections = result?.job_description ? Object.entries(result.job_description) : [];
+  const jdSections = result ? getJobDescriptionSections(result.job_description) : [];
+  const jdMetadata = result ? getJobDescriptionMetadata(result.job_description) : '';
 
   return (
     <>
@@ -179,8 +224,8 @@ export default function HomePage() {
                     <input id="job_title" value={form.job_title} onChange={(e) => updateField('job_title', e.target.value)} className="input" placeholder="Senior Product Manager" />
                   </div>
                   <div>
-                    <label className="label" htmlFor="technologies">Technologies</label>
-                    <input id="technologies" value={form.technologies} onChange={(e) => updateField('technologies', e.target.value)} className="input" placeholder="Python, FastAPI, AWS" />
+                    <label className="label" htmlFor="technologies">Tools &amp; technologies</label>
+                    <input id="technologies" value={form.technologies} onChange={(e) => updateField('technologies', e.target.value)} className="input" placeholder="Advanced Excel (mandatory), Tableau" />
                   </div>
                   <div>
                     <label className="label" htmlFor="experience_min">Min experience</label>
@@ -203,15 +248,22 @@ export default function HomePage() {
                       <option value="onsite">On-site</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="label" htmlFor="employment_type">Employment type</label>
-                    <select id="employment_type" value={form.employment_type} onChange={(e) => updateField('employment_type', e.target.value)} className="input">
-                      <option value="">Select</option>
-                      <option value="full-time">Full-time</option>
-                      <option value="part-time">Part-time</option>
-                      <option value="contract">Contract</option>
-                    </select>
-                  </div>
+                  <fieldset>
+                    <legend className="label">Employment type</legend>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 pt-2">
+                      {employmentTypeOptions.map((option) => (
+                        <label key={option.value} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={form.employment_types.includes(option.value)}
+                            onChange={() => toggleEmploymentType(option.value)}
+                            className="h-4 w-4 rounded border-slate-300"
+                          />
+                          {option.label}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
                   <div>
                     <label className="label" htmlFor="industry">Industry</label>
                     <input id="industry" value={form.industry} onChange={(e) => updateField('industry', e.target.value)} className="input" placeholder="EdTech" />
@@ -223,6 +275,30 @@ export default function HomePage() {
                   <div className="sm:col-span-2">
                     <label className="label" htmlFor="company_description">Company description</label>
                     <textarea id="company_description" value={form.company_description} onChange={(e) => updateField('company_description', e.target.value)} rows={4} className="input resize-none" placeholder="Brief description of the company and stage" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="client_context">Client / project context</label>
+                    <textarea id="client_context" value={form.client_context} onChange={(e) => updateField('client_context', e.target.value)} rows={3} maxLength={1000} className="input resize-none" placeholder="The client, project or initiative this role supports" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="education">Education</label>
+                    <input id="education" value={form.education} onChange={(e) => updateField('education', e.target.value)} maxLength={500} className="input" placeholder="Bachelor's in Statistics, Economics, or a related field" />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="preferred_background">Preferred sector background</label>
+                    <input id="preferred_background" value={form.preferred_background} onChange={(e) => updateField('preferred_background', e.target.value)} className="input" placeholder="EdTech, publishing" />
+                  </div>
+                  <div>
+                    <label className="label" htmlFor="collaborators">Works with</label>
+                    <input id="collaborators" value={form.collaborators} onChange={(e) => updateField('collaborators', e.target.value)} className="input" placeholder="Content Strategists, Engineering" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="engagement_details">Engagement details</label>
+                    <input id="engagement_details" value={form.engagement_details} onChange={(e) => updateField('engagement_details', e.target.value)} maxLength={500} className="input" placeholder="Flexible hours based on project needs; 6-month contract" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="work_environment">Work environment</label>
+                    <input id="work_environment" value={form.work_environment} onChange={(e) => updateField('work_environment', e.target.value)} maxLength={500} className="input" placeholder="Asynchronous and remote; occasional team check-ins" />
                   </div>
                 </div>
               </div>
@@ -273,90 +349,22 @@ export default function HomePage() {
                       <h1 className="mt-0 text-3xl font-semibold tracking-tight text-slate-900">{result.job_description.job_title}</h1>
                     ) : null}
 
-                    {(result.job_description.location || result.job_description.work_arrangement || result.job_description.employment_type || result.job_description.experience) && (
-                      <p className="mt-2 text-sm text-slate-600">
-                        {[
-                          result.job_description.location,
-                          result.job_description.work_arrangement,
-                          result.job_description.employment_type,
-                          result.job_description.experience
-                        ]
-                          .filter(Boolean)
-                          .join(' • ')}
-                      </p>
-                    )}
+                    {jdMetadata ? <p className="mt-2 text-sm text-slate-600">{jdMetadata}</p> : null}
 
-                    {result.job_description.company_overview ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Company Overview</h2>
-                        <p className="mt-2 text-slate-700">{result.job_description.company_overview}</p>
+                    {jdSections.map(({ heading, content }) => (
+                      <section key={heading ?? 'closing'} className="mt-6">
+                        {heading ? <h2 className="text-lg font-semibold text-slate-900">{heading}</h2> : null}
+                        {Array.isArray(content) ? (
+                          <ul className="mt-2 list-disc space-y-2 pl-5 text-slate-700">
+                            {content.map((item) => (
+                              <li key={item}>{item}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="mt-2 text-slate-700">{content}</p>
+                        )}
                       </section>
-                    ) : null}
-
-                    {result.job_description.role_summary ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Role Summary</h2>
-                        <p className="mt-2 text-slate-700">{result.job_description.role_summary}</p>
-                      </section>
-                    ) : null}
-
-                    {result.job_description.responsibilities?.length ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Key Responsibilities</h2>
-                        <ul className="mt-2 list-disc space-y-2 pl-5 text-slate-700">
-                          {result.job_description.responsibilities.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
-
-                    {result.job_description.required_qualifications?.length ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Required Qualifications</h2>
-                        <ul className="mt-2 list-disc space-y-2 pl-5 text-slate-700">
-                          {result.job_description.required_qualifications.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
-
-                    {result.job_description.preferred_qualifications?.length ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Preferred Qualifications</h2>
-                        <ul className="mt-2 list-disc space-y-2 pl-5 text-slate-700">
-                          {result.job_description.preferred_qualifications.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
-
-                    {result.job_description.technical_skills?.length ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Technical Skills</h2>
-                        <ul className="mt-2 list-disc space-y-2 pl-5 text-slate-700">
-                          {result.job_description.technical_skills.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
-                        </ul>
-                      </section>
-                    ) : null}
-
-                    {result.job_description.compensation_and_benefits ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Compensation and Benefits</h2>
-                        <p className="mt-2 text-slate-700">{result.job_description.compensation_and_benefits}</p>
-                      </section>
-                    ) : null}
-
-                    {result.job_description.application_instructions ? (
-                      <section className="mt-6">
-                        <h2 className="text-lg font-semibold text-slate-900">Application Instructions</h2>
-                        <p className="mt-2 text-slate-700">{result.job_description.application_instructions}</p>
-                      </section>
-                    ) : null}
+                    ))}
                   </article>
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">

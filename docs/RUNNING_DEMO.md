@@ -114,23 +114,22 @@ GET /health/ready
 
 ## 🔄 Running the Application
 
-### Option 1: Using the Simplified App (Currently Running)
+### Option 1: Full application with Bedrock (recommended)
+```bash
+cd JD_Creator
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+Settings are read from `.env` (including `AWS_BEARER_TOKEN_BEDROCK` or your AWS credential chain).
+`JD_BEDROCK_MODEL_ID` must be a model that is still active, e.g. `us.anthropic.claude-sonnet-4-5-20250929-v1:0`.
+
+### Option 2: Simplified app (no LLM)
 ```bash
 cd JD_Creator
 python app_simple.py
 # Server runs at http://127.0.0.1:8000
 ```
-
-### Option 2: Using the Full Application (Requires environment fix)
-```bash
-cd JD_Creator
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-**Note:** The full application has a known Pydantic/FastAPI compatibility issue in this Windows environment that requires:
-- Fresh virtual environment, OR
-- Specific version combinations, OR
-- Docker (eliminates version conflicts)
+**Note:** `app_simple.py` ignores the role you describe and always returns the same hardcoded developer JD.
+Use it only for UI work, never to evaluate JD quality.
 
 ---
 
@@ -164,10 +163,10 @@ The Next.js API route forwards generation requests to the FastAPI endpoint at
 `POST http://127.0.0.1:8000/api/jd/generate`. In development, this URL is used
 automatically unless `JD_CREATOR_API_URL` is set. Mock mode is off by default.
 
-Start the in-repo demo backend in one terminal:
+Start the backend in one terminal:
 
 ```bash
-python app_simple.py
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Start the Next.js frontend in another terminal:
@@ -194,7 +193,7 @@ generation.
    ```bash
    docker build -t jd-creator:latest .
    docker run -p 8000:8000 \
-     -e JD_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0 \
+     -e JD_BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0 \
      -v ~/.aws:/root/.aws:ro \
      jd-creator:latest
    ```

@@ -4,7 +4,8 @@ from httpx import AsyncClient
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.config import Settings
+from app.api.jd import get_jd_service
+from app.config import Settings, get_settings
 from app.schemas.jd import JobDescription, JDModelOutput
 from app.services.bedrock_service import BedrockService
 from app.services.jd_service import JDService
@@ -35,20 +36,48 @@ def test_health_live(client):
 
 def test_health_ready_without_model(client):
     """Test readiness probe fails without model ID."""
-    # Override settings temporarily
-    with patch("app.api.health.Settings") as mock_settings_class:
-        mock_settings = MagicMock()
-        mock_settings.validate_bedrock_model.side_effect = ValueError("Model ID required")
-        mock_settings_class.return_value = mock_settings
-
+    app.dependency_overrides[get_settings] = lambda: Settings(bedrock_model_id="")
+    try:
         response = client.get("/health/ready")
-        # Status depends on FastAPI's error handling
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 503
 
 
-def test_health_ready_with_model(client):
+def test_health_ready_with_model(client, mock_settings):
     """Test readiness probe succeeds with model ID."""
-    response = client.get("/health/ready")
-    # Will fail because bedrock_model_id is not set in the default Settings
+    app.dependency_overrides[get_settings] = lambda: mock_settings
+    try:
+        response = client.get("/health/ready")
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+
+
+def test_generate_returns_request_id_and_new_sections(client):
+    """The response body carries the middleware's request ID and the new JD sections."""
+    output = JDModelOutput(
+        job_description=JobDescription(
+            job_title="Business Analyst",
+            project_context="Content pipeline modernization",
+            engagement_details="Flexible hours",
+            closing_statement="Apply today.",
+        )
+    )
+    jd_service = MagicMock(spec=JDService)
+    jd_service.generate_jd = AsyncMock(return_value=output)
+    app.dependency_overrides[get_jd_service] = lambda: jd_service
+    try:
+        response = client.post("/api/jd/generate", json={"prompt": "Business analyst for content pipeline work"})
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["request_id"] == response.headers["X-Request-ID"]
+    assert body["job_description"]["project_context"] == "Content pipeline modernization"
+    assert body["job_description"]["engagement_details"] == "Flexible hours"
+    assert body["job_description"]["closing_statement"] == "Apply today."
 
 
 def test_generate_jd_invalid_prompt_length(client):

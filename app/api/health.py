@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Response, Depends
 from fastapi.responses import JSONResponse
 
-from app.config import Settings
+from app.config import Settings, get_settings
 
 router = APIRouter(prefix="/health", tags=["health"])
 
@@ -13,7 +13,7 @@ async def health_live() -> dict:
 
 
 @router.get("/ready", response_model=None)
-async def health_ready(settings: Settings = Depends()):
+async def health_ready(settings: Settings = Depends(get_settings)):
     """Readiness probe: confirms required configuration is available."""
     try:
         settings.validate_bedrock_model()

@@ -43,7 +43,7 @@ Browser (Safe rendering via textContent)
 1. Go to **AWS Bedrock Console** → **Model Catalog**
 2. Find your model (e.g., "Claude 3.5 Sonnet")
 3. Click **Enable** to grant your AWS account access
-4. Copy the **Model ID** (e.g., `anthropic.claude-3-5-sonnet-20241022-v2:0`)
+4. Copy the **Model ID** (e.g., `us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
 
 **Note:** Model IDs and availability vary by region. See [AWS Bedrock documentation](https://docs.aws.amazon.com/bedrock/).
 
@@ -102,7 +102,7 @@ cp .env.example .env
 
 ```dotenv
 JD_AWS_REGION=us-east-1
-JD_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+JD_BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
 JD_AWS_PROFILE=         # Leave empty to use default credentials
 JD_BEDROCK_TEMPERATURE=0.2
 JD_BEDROCK_MAX_TOKENS=4096
@@ -256,7 +256,7 @@ docker build -t jd-creator:latest .
 ```bash
 docker run --rm \
   -p 8000:8000 \
-  -e JD_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0 \
+  -e JD_BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0 \
   -e AWS_PROFILE=default \
   -v ~/.aws:/root/.aws:ro \
   jd-creator:latest
@@ -294,7 +294,7 @@ cp terraform.tfvars.example terraform.tfvars
 Edit `terraform.tfvars`:
 ```hcl
 aws_region       = "us-east-1"
-bedrock_model_id = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+bedrock_model_id = "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
 desired_count    = 2
 task_cpu         = "256"
 task_memory      = "512"

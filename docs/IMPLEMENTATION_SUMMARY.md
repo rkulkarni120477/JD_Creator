@@ -109,18 +109,17 @@ This document summarizes the fully implemented JD Creator application - a profes
 
 ---
 
-## ⚠️ Known Environment Issue (Not a Code Issue)
+## Resolved: startup error "Fields must not use names with leading underscores"
 
-**Symptom:** `pydantic.errors.PydanticUserError: Fields must not use names with leading underscores`
+**Cause:** a code issue, not the environment. Routes declared `settings: Settings = Depends()`, which makes
+FastAPI treat the `BaseSettings` constructor as a dependency. Its keyword arguments (`_env_file`,
+`_case_sensitive`, …) became request fields, and Pydantic rejects field names with leading underscores.
 
-**Cause:** Pydantic 2.14+ has stricter validation when FastAPI creates internal body models. This appears to be a transient compatibility issue with the specific versions of Pydantic/FastAPI/langchain-aws in the environment.
+**Fix:** settings are now provided by `app.config.get_settings()` (cached, loads `.env`), used as
+`Depends(get_settings)`. `uvicorn app.main:app` starts normally and calls Bedrock.
 
-**The code is correct** — the schema validation works fine standalone, and all individual modules import successfully.
-
-**Workarounds:**
-1. Use a different Python version or fresh virtual environment
-2. Try specific version combinations (e.g., Pydantic 2.10.x)
-3. The application works perfectly once the import issue is resolved
+**Model ID:** `anthropic.claude-3-5-sonnet-20241022-v2:0` and Claude 3.7 Sonnet have reached end of life on
+Bedrock. Use an inference profile such as `us.anthropic.claude-sonnet-4-5-20250929-v1:0`.
 
 **Tested independently:**
 - Schema validation: ✅ Passes

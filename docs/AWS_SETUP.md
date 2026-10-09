@@ -77,7 +77,7 @@ JD Creator will automatically use the default profile.
 1. **Go to AWS Console** → **Bedrock** → **Model Access**
 2. **Find your desired model** (e.g., "Claude 3.5 Sonnet")
 3. **Click "Enable"** to grant your account access
-4. **Copy the Model ID** (e.g., `anthropic.claude-3-5-sonnet-20241022-v2:0`)
+4. **Copy the Model ID** (e.g., `us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
 
 ⚠️ **Important**: You must enable model access before using it, or you'll get an `AccessDeniedException`.
 
@@ -95,7 +95,7 @@ JD_AWS_REGION=us-east-1
 JD_AWS_PROFILE=default
 
 # Model ID from Bedrock console
-JD_BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
+JD_BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
 ```
 
 ---
@@ -122,7 +122,7 @@ If `/health/ready` returns `{"status": "ready"}`, you're configured correctly.
 
 ### "BEDROCK_MODEL_ID is required"
 - Set `JD_BEDROCK_MODEL_ID` in `.env`
-- Model ID must be exact (e.g., `anthropic.claude-3-5-sonnet-20241022-v2:0`)
+- Model ID must be exact (e.g., `us.anthropic.claude-sonnet-4-5-20250929-v1:0`)
 
 ### "AccessDeniedException" or "Model access not granted"
 - Go to AWS Bedrock → Model Access

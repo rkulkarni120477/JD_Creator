@@ -30,55 +30,40 @@ function jdToMarkdown(jd) {
         lines.push('');
     }
 
-    if (jd.company_overview) {
-        lines.push('## Company Overview');
-        lines.push(jd.company_overview);
+    jdSections(jd).forEach(([title, content]) => {
+        if (!content || (Array.isArray(content) && content.length === 0)) return;
+        if (title) lines.push(`## ${title}`);
+        if (Array.isArray(content)) {
+            content.forEach(item => lines.push(`- ${item}`));
+        } else {
+            lines.push(content);
+        }
         lines.push('');
-    }
-
-    if (jd.role_summary) {
-        lines.push('## Role Summary');
-        lines.push(jd.role_summary);
-        lines.push('');
-    }
-
-    if (jd.responsibilities && jd.responsibilities.length > 0) {
-        lines.push('## Key Responsibilities');
-        jd.responsibilities.forEach(r => lines.push(`- ${r}`));
-        lines.push('');
-    }
-
-    if (jd.required_qualifications && jd.required_qualifications.length > 0) {
-        lines.push('## Required Qualifications');
-        jd.required_qualifications.forEach(q => lines.push(`- ${q}`));
-        lines.push('');
-    }
-
-    if (jd.preferred_qualifications && jd.preferred_qualifications.length > 0) {
-        lines.push('## Preferred Qualifications');
-        jd.preferred_qualifications.forEach(q => lines.push(`- ${q}`));
-        lines.push('');
-    }
-
-    if (jd.technical_skills && jd.technical_skills.length > 0) {
-        lines.push('## Technical Skills');
-        jd.technical_skills.forEach(s => lines.push(`- ${s}`));
-        lines.push('');
-    }
-
-    if (jd.compensation_and_benefits) {
-        lines.push('## Compensation and Benefits');
-        lines.push(jd.compensation_and_benefits);
-        lines.push('');
-    }
-
-    if (jd.application_instructions) {
-        lines.push('## Application Instructions');
-        lines.push(jd.application_instructions);
-        lines.push('');
-    }
+    });
 
     return lines.join('\n').trim();
+}
+
+/**
+ * Ordered [heading, content] pairs for the JD body; a null heading renders as a bare paragraph.
+ * Keep in step with getJobDescriptionSections in src/lib/jd-formatters.ts.
+ */
+function jdSections(jd) {
+    return [
+        ['Company Overview', jd.company_overview],
+        ['About the Project', jd.project_context],
+        ['Role Summary', jd.role_summary],
+        ['Key Responsibilities', jd.responsibilities],
+        ['Required Qualifications', jd.required_qualifications],
+        ['Education', jd.education_requirements],
+        ['Preferred Qualifications', jd.preferred_qualifications],
+        ['Technical Skills', jd.technical_skills],
+        ['Engagement Details', jd.engagement_details],
+        ['Work Environment', jd.work_environment],
+        ['Compensation and Benefits', jd.compensation_and_benefits],
+        ['Application Instructions', jd.application_instructions],
+        [null, jd.closing_statement],
+    ];
 }
 
 // For testing: expose to global scope (CommonJS / Node.js)
@@ -224,7 +209,7 @@ function renderJD(response) {
         const section = document.createElement('section');
 
         if (title) {
-            const heading = document.createElement(title === jd.job_title ? 'h1' : 'h2');
+            const heading = document.createElement('h2');
             heading.textContent = title;
             section.appendChild(heading);
         }
@@ -244,6 +229,12 @@ function renderJD(response) {
         }
 
         jdContent.appendChild(section);
+    }
+
+    if (jd.job_title) {
+        const titleHeading = document.createElement('h1');
+        titleHeading.textContent = jd.job_title;
+        jdContent.appendChild(titleHeading);
     }
 
     // Render metadata
@@ -311,15 +302,7 @@ function renderJD(response) {
     }
 
     // Render sections in order
-    createSection(jd.job_title, null);
-    createSection('Company Overview', jd.company_overview);
-    createSection('Role Summary', jd.role_summary);
-    createSection('Key Responsibilities', jd.responsibilities);
-    createSection('Required Qualifications', jd.required_qualifications);
-    createSection('Preferred Qualifications', jd.preferred_qualifications);
-    createSection('Technical Skills', jd.technical_skills);
-    createSection('Compensation and Benefits', jd.compensation_and_benefits);
-    createSection('Application Instructions', jd.application_instructions);
+    jdSections(jd).forEach(([title, content]) => createSection(title, content));
 
     // Show results
     resultsSection.style.display = 'block';

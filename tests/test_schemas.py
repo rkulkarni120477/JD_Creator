@@ -36,9 +36,8 @@ def test_generate_request_prompt_too_long():
 
 def test_generate_request_prompt_not_meaningful():
     """Test that prompt must contain meaningful content."""
-    with pytest.raises(ValidationError) as exc_info:
-        GenerateRequest(prompt="abc def ghi")  # Only 3 chars of actual words
-    # This might pass depending on implementation
+    with pytest.raises(ValidationError, match="at least 3 words"):
+        GenerateRequest(prompt="12 34 56 78 90")  # Long enough, but no words
 
 
 def test_generate_request_prompt_trimmed():

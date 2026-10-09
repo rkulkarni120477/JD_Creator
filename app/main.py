@@ -11,7 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
-from app.config import Settings
+from app.config import get_settings
 from app.api import health, jd
 from app.schemas.errors import ErrorCode, ErrorResponse
 
@@ -25,7 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Global state for rate limiting and concurrency
-settings = Settings()
+settings = get_settings()
 generation_semaphore = asyncio.Semaphore(settings.max_concurrent_generations)
 ip_request_times = defaultdict(list)
 
@@ -56,12 +56,6 @@ async def add_request_id(request: Request, call_next):
     """Add request ID to all requests."""
     request_id = str(uuid.uuid4())
     request.state.request_id = request_id
-
-    # Add to dependency resolution
-    async def _get_request_id():
-        return request_id
-
-    app.dependency_overrides[str] = _get_request_id
 
     start_time = time.time()
     response = await call_next(request)

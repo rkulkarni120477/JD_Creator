@@ -1,7 +1,9 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException, Body
+from functools import lru_cache
 
-from app.config import Settings
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+
+from app.config import Settings, get_settings
 from app.schemas.errors import ApplicationException, ErrorCode, ErrorResponse
 from app.schemas.jd import GenerateRequest, GenerateResponse
 from app.services.bedrock_service import BedrockService
@@ -11,22 +13,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/jd", tags=["jd"])
 
 
-async def get_bedrock_service(settings: Settings = Depends()) -> BedrockService:
+@lru_cache
+def _shared_bedrock_service() -> BedrockService:
+    # One service per process so the boto3 client and LangChain model are reused across requests
+    return BedrockService(get_settings())
+
+
+def get_bedrock_service() -> BedrockService:
     """Dependency to get Bedrock service instance."""
-    return BedrockService(settings)
+    return _shared_bedrock_service()
 
 
-async def get_jd_service(
-    settings: Settings = Depends(),
+def get_jd_service(
+    settings: Settings = Depends(get_settings),
     bedrock_service: BedrockService = Depends(get_bedrock_service),
 ) -> JDService:
     """Dependency to get JD service instance."""
     return JDService(settings, bedrock_service)
 
 
-def get_request_id() -> str:
-    """Get request ID from dependency overrides (set by middleware)."""
-    return ""
+def get_request_id(request: Request) -> str:
+    """Get the request ID assigned by the request-ID middleware."""
+    return getattr(request.state, "request_id", "")
 
 
 @router.post("/generate", response_model=GenerateResponse)
