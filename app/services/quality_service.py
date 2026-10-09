@@ -27,6 +27,18 @@ _LIST_SECTIONS = (
 )
 _QUALIFICATION_SECTIONS = ("required_qualifications", "education_requirements", "preferred_qualifications")
 
+# Industry words that signal text left over from another posting, e.g. "aviation training" in a content-pipeline JD.
+# Flagged only when the word appears nowhere in the supplied requirements. Words with common generic senses
+# ("pilot programme", "data mining", "construction of dashboards") are deliberately left out.
+_DOMAIN_TERMS = frozenset(
+    {
+        "aviation", "aerospace", "airline", "airlines", "aircraft",
+        "healthcare", "hospital", "hospitals", "clinical", "nursing", "pharmaceutical", "pharma",
+        "banking", "insurance", "automotive", "retail", "hospitality", "petroleum",
+        "maritime", "military", "defense", "defence", "agriculture", "telecom", "telecommunications", "casino",
+    }
+)
+
 
 def _normalize(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.lower()).split())
@@ -57,10 +69,13 @@ class QualityService:
     def rule_checks(self, request: GenerateRequest, jd: JobDescription) -> list[QualityWarning]:
         return [
             *self._check_core_sections(jd),
+            *self._check_role_summary_format(jd),
+            *self._check_engagement_format(jd),
             *self._check_header_fields(request, jd),
             *self._check_supplied_values(request, jd),
             *self._check_placeholders(jd),
             *self._check_duplicates(jd),
+            *self._check_off_domain_terms(request, jd),
         ]
 
     @staticmethod
@@ -72,13 +87,59 @@ class QualityService:
             warnings.append(
                 QualityWarning(severity="error", section="required_qualifications", message="No required qualifications were generated.")
             )
+        if not jd.role_summary:
+            warnings.append(
+                QualityWarning(severity="warning", section="role_summary", message="No opening paragraph was generated.")
+            )
+        return warnings
+
+    @staticmethod
+    def _check_role_summary_format(jd: JobDescription) -> list[QualityWarning]:
+        """Ensure role_summary emphasizes job title and focus with **bold** formatting."""
+        warnings = []
+        if jd.role_summary and "**" not in jd.role_summary:
+            warnings.append(
+                QualityWarning(
+                    severity="warning",
+                    section="role_summary",
+                    message="The opening paragraph should emphasize the job title and main focus using **bold text** (e.g., **Data Analyst** and **market research**).",
+                )
+            )
+        return warnings
+
+    @staticmethod
+    def _check_engagement_format(jd: JobDescription) -> list[QualityWarning]:
+        """Ensure engagement_details is concise (one sentence as per system prompt)."""
+        warnings = []
+        if jd.engagement_details:
+            # Count sentence-like breaks (periods, but not within abbreviations)
+            sentence_count = len(re.findall(r"[.!?]+(?:\s|$)", jd.engagement_details))
+            if sentence_count > 1:
+                warnings.append(
+                    QualityWarning(
+                        severity="warning",
+                        section="engagement_details",
+                        message="Engagement details should be one complete sentence covering employment type(s), hours, duration and flexibility.",
+                    )
+                )
+            # Word count warning (soft limit)
+            word_count = len(jd.engagement_details.split())
+            if word_count > 50:
+                warnings.append(
+                    QualityWarning(
+                        severity="warning",
+                        section="engagement_details",
+                        message=f"Engagement details are lengthy ({word_count} words); consider making them more concise.",
+                    )
+                )
         return warnings
 
     @staticmethod
     def _check_header_fields(request: GenerateRequest, jd: JobDescription) -> list[QualityWarning]:
         warnings = []
-        # A supplied-but-dropped location is reported by _check_supplied_values instead
-        if not jd.location and not request.details.location:
+        # A supplied-but-dropped location is reported by _check_supplied_values instead; a remote role needs no place
+        is_remote = any("remote" in (v or "").lower() for v in (jd.work_arrangement, request.details.work_arrangement))
+        if not jd.location and not request.details.location and not is_remote:
             warnings.append(
                 QualityWarning(
                     severity="warning",
@@ -126,6 +187,15 @@ class QualityService:
                             message=f"The supplied employment type '{supplied}' is not stated in the job type.",
                         )
                     )
+
+        if details.company_name and jd.role_summary and _normalize(details.company_name) not in _normalize(jd.role_summary):
+            warnings.append(
+                QualityWarning(
+                    severity="warning",
+                    section="role_summary",
+                    message=f"The opening paragraph does not name the hiring company '{details.company_name}'.",
+                )
+            )
 
         stated_years = set(re.findall(r"\d+", jd.experience or ""))
         for label, value in (("minimum", details.experience_min), ("maximum", details.experience_max)):
@@ -177,6 +247,26 @@ class QualityService:
                         severity="warning",
                         section="technical_skills",
                         message=f"'{skill}' repeats a tool already covered in the qualifications.",
+                    )
+                )
+        return warnings
+
+    @staticmethod
+    def _check_off_domain_terms(request: GenerateRequest, jd: JobDescription) -> list[QualityWarning]:
+        supplied = _tokens(" ".join([request.prompt, JDService.build_explicit_fields(request.details)]))
+        warnings = []
+        for field, value in jd.model_dump().items():
+            texts = value if isinstance(value, list) else [value]
+            found = set()
+            for text in texts:
+                if isinstance(text, str):
+                    found |= (_tokens(text) & _DOMAIN_TERMS) - supplied
+            for term in sorted(found):
+                warnings.append(
+                    QualityWarning(
+                        severity="warning",
+                        section=field,
+                        message=f"Mentions '{term}', which does not appear in the supplied requirements; it may be left over from another job description.",
                     )
                 )
         return warnings
