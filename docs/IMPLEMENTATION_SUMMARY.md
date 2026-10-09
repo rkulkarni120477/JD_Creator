@@ -271,3 +271,67 @@ The code is **100% correct and production-ready**. The issue is environmental, n
 **Infrastructure:** ✅ Terraform plan ready (not applied)  
 **Date:** October 2026  
 **Version:** 0.1.0
+
+---
+
+## 📋 Format Alignment Enhancements (Latest)
+
+### New Documentation
+- **[FORMAT_ALIGNMENT.md](FORMAT_ALIGNMENT.md)**: Comprehensive analysis showing how JD_Creator output aligns perfectly with professional JD formatting standards (demonstrated by reference PDFs)
+
+### Enhanced Quality Checks
+Added three new validation checks to ensure consistent professional formatting:
+
+#### 1. **Role Summary Bold Emphasis** (`_check_role_summary_format`)
+- Validates job title and focus phrase are emphasized with `**bold**` 
+- Follows system prompt requirement: wrap key terms in double asterisks
+- Warning level (non-blocking) to guide users on professional standards
+- Example: `**Data Analyst** focused on **market research**`
+
+#### 2. **Engagement Details Format** (`_check_engagement_format`)  
+- Ensures engagement_details is a single concise sentence
+- Checks that employment terms (Contract, Part-time, etc.) are stated once
+- Warns if exceeds ~50 words (soft guideline)
+- System prompt specifies: *"one complete sentence covering employment type(s), hours, duration and schedule flexibility"*
+
+#### 3. **Domain Term Mismatch Detection** (Enhanced)
+- Flags industry-specific terms that appear in output but not in supplied requirements
+- Detects copy-paste errors from other JDs (e.g., "aviation training" in content pipeline role)
+- Domains monitored: aviation, aerospace, healthcare, banking, maritime, automotive, etc.
+- Provides specific guidance: *"May be left over from another job description"*
+
+### Quality Check Validation Flow
+```
+Generated JD
+    ↓
+1. Core sections present (Responsibilities, Qualifications) → ERROR if missing
+    ↓
+2. Role summary has **bold** emphasis → WARNING if missing
+    ↓
+3. Engagement details properly formatted → WARNING if too long/multiple sentences
+    ↓
+4. Header fields complete (Location, Job Type) → WARNING if missing  
+    ↓
+5. Supplied values used (company name, location) → WARNING if mismatch
+    ↓
+6. No template placeholders ([Company], TBD, etc.) → ERROR if found
+    ↓
+7. No duplicate bullets across sections → WARNING if found
+    ↓
+8. No domain mismatches → WARNING if suspicious terms detected
+    ↓
+Valid JD Ready for Export
+```
+
+### Verification
+All enhancements are backward-compatible:
+- No changes to core generation logic
+- No changes to API contract
+- Warnings are informational, don't block output
+- Can be extended with additional checks without affecting existing ones
+
+See [FORMAT_ALIGNMENT.md](FORMAT_ALIGNMENT.md) for:
+- Side-by-side comparison with reference PDFs
+- How export formats maintain consistency
+- Testing procedures
+- Next enhancement suggestions
