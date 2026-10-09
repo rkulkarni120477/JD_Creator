@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     bedrock_request_timeout_seconds: float = 60.0
     bedrock_max_retries: int = 3
 
+    # Post-generation consistency review (a second, smaller model call); rule-based checks always run
+    quality_review_enabled: bool = True
+    quality_review_model_id: str = ""  # Empty uses bedrock_model_id; a Haiku model keeps it fast and cheap
+
     # Application tuning
     overall_deadline_seconds: float = 120.0
     max_concurrent_generations: int = 10

@@ -8,6 +8,7 @@ from app.schemas.errors import ApplicationException, ErrorCode, ErrorResponse
 from app.schemas.jd import GenerateRequest, GenerateResponse
 from app.services.bedrock_service import BedrockService
 from app.services.jd_service import JDService
+from app.services.quality_service import QualityService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/jd", tags=["jd"])
@@ -32,6 +33,20 @@ def get_jd_service(
     return JDService(settings, bedrock_service)
 
 
+@lru_cache
+def _shared_review_service() -> BedrockService:
+    settings = get_settings()
+    if not settings.quality_review_model_id or settings.quality_review_model_id == settings.bedrock_model_id:
+        return _shared_bedrock_service()
+    return BedrockService(settings, model_id=settings.quality_review_model_id)
+
+
+def get_quality_service(settings: Settings = Depends(get_settings)) -> QualityService:
+    """Dependency to get the post-generation quality checker."""
+    review_service = _shared_review_service() if settings.quality_review_enabled else None
+    return QualityService(settings, review_service)
+
+
 def get_request_id(request: Request) -> str:
     """Get the request ID assigned by the request-ID middleware."""
     return getattr(request.state, "request_id", "")
@@ -41,6 +56,7 @@ def get_request_id(request: Request) -> str:
 async def generate_jd(
     request: GenerateRequest = Body(...),
     jd_service: JDService = Depends(get_jd_service),
+    quality_service: QualityService = Depends(get_quality_service),
     request_id: str = Depends(get_request_id),
 ) -> GenerateResponse:
     """
@@ -59,12 +75,14 @@ async def generate_jd(
     """
     try:
         jd_output = await jd_service.generate_jd(request)
+        quality_warnings = await quality_service.check(request, jd_output.job_description)
 
         return GenerateResponse(
             request_id=request_id,
             job_description=jd_output.job_description,
             assumptions=jd_output.assumptions,
             missing_details=jd_output.missing_details,
+            quality_warnings=quality_warnings,
         )
 
     except ApplicationException as e:

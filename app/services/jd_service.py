@@ -120,7 +120,7 @@ Please provide a valid response that matches the required schema.""",
         system_prompt = self._load_system_prompt()
 
         # Build the explicit fields section
-        explicit_fields = self._build_explicit_fields(request.details)
+        explicit_fields = self.build_explicit_fields(request.details)
 
         # Build the requirements section
         user_message = f"""Generate a professional job description based on these requirements:
@@ -139,7 +139,8 @@ Respond with valid JSON matching the JobDescription schema."""
             {"role": "user", "content": user_message},
         ]
 
-    def _build_explicit_fields(self, details) -> str:
+    @classmethod
+    def build_explicit_fields(cls, details) -> str:
         """Build the explicit fields section with precedence note."""
         lines = ["Explicit structured fields (authoritative; override conflicting natural-language requirements below):"]
 
@@ -147,7 +148,7 @@ Respond with valid JSON matching the JobDescription schema."""
             lines.append(f"- Job Title: {details.job_title}")
         if details.technologies:
             lines.append(f"- Technologies / Tools: {', '.join(details.technologies)}")
-        experience = self._format_experience(details.experience_min, details.experience_max)
+        experience = cls._format_experience(details.experience_min, details.experience_max)
         if experience:
             lines.append(f"- Experience: {experience}")
         if details.location:

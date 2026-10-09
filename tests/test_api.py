@@ -4,9 +4,10 @@ from httpx import AsyncClient
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.api.jd import get_jd_service
+from app.api.jd import get_jd_service, get_quality_service
 from app.config import Settings, get_settings
-from app.schemas.jd import JobDescription, JDModelOutput
+from app.schemas.jd import JobDescription, JDModelOutput, QualityWarning
+from app.services.quality_service import QualityService
 from app.services.bedrock_service import BedrockService
 from app.services.jd_service import JDService
 from app.schemas.errors import ModelAccessDenied, RequestTimeout, ErrorCode
@@ -66,7 +67,12 @@ def test_generate_returns_request_id_and_new_sections(client):
     )
     jd_service = MagicMock(spec=JDService)
     jd_service.generate_jd = AsyncMock(return_value=output)
+    quality_service = MagicMock(spec=QualityService)
+    quality_service.check = AsyncMock(
+        return_value=[QualityWarning(severity="warning", section="location", message="No location is stated.")]
+    )
     app.dependency_overrides[get_jd_service] = lambda: jd_service
+    app.dependency_overrides[get_quality_service] = lambda: quality_service
     try:
         response = client.post("/api/jd/generate", json={"prompt": "Business analyst for content pipeline work"})
     finally:
@@ -78,6 +84,9 @@ def test_generate_returns_request_id_and_new_sections(client):
     assert body["job_description"]["project_context"] == "Content pipeline modernization"
     assert body["job_description"]["engagement_details"] == "Flexible hours"
     assert body["job_description"]["closing_statement"] == "Apply today."
+    assert body["quality_warnings"] == [
+        {"severity": "warning", "section": "location", "message": "No location is stated."}
+    ]
 
 
 def test_generate_jd_invalid_prompt_length(client):

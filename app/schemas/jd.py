@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 import re
 
@@ -135,6 +137,28 @@ class JDModelOutput(BaseModel):
     missing_details: list[str] = Field(default_factory=list)
 
 
+class QualityWarning(BaseModel):
+    """A problem found in a generated JD by the post-generation checks."""
+
+    severity: Literal["error", "warning"]
+    section: str | None = None  # JobDescription field name, when the problem is tied to one
+    message: str
+
+
+class ReviewIssue(BaseModel):
+    """One problem reported by the model-based consistency review."""
+
+    section: str = Field(description="The JobDescription field containing the problem, e.g. closing_statement.")
+    excerpt: str = Field(description="The exact offending text, quoted from the job description.")
+    problem: str = Field(description="One sentence explaining what is inconsistent and with what.")
+
+
+class QualityReview(BaseModel):
+    """Internal model output of the consistency review."""
+
+    issues: list[ReviewIssue] = Field(default_factory=list)
+
+
 class GenerateResponse(BaseModel):
     """Response from the generate endpoint."""
 
@@ -142,3 +166,4 @@ class GenerateResponse(BaseModel):
     job_description: JobDescription
     assumptions: list[str] = Field(default_factory=list)
     missing_details: list[str] = Field(default_factory=list)
+    quality_warnings: list[QualityWarning] = Field(default_factory=list)

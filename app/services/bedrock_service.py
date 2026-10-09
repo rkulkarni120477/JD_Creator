@@ -23,9 +23,10 @@ logger = logging.getLogger(__name__)
 class BedrockService:
     """Service for interacting with Amazon Bedrock."""
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, model_id: str | None = None):
         self.settings = settings
         self.settings.validate_bedrock_model()
+        self.model_id = model_id or settings.bedrock_model_id
         self._model = None
 
     def _create_model(self) -> ChatBedrockConverse:
@@ -50,7 +51,7 @@ class BedrockService:
 
         # Create LangChain model
         self._model = ChatBedrockConverse(
-            model_id=self.settings.bedrock_model_id,
+            model_id=self.model_id,
             client=client,
             temperature=self.settings.bedrock_temperature,
             max_tokens=self.settings.bedrock_max_tokens,
@@ -171,8 +172,8 @@ class BedrockService:
             raise ModelAccessDenied(f"Access denied to model: {message}", "")
         elif error_code in ("ValidationException", "ResourceNotFoundException"):
             raise ModelAccessDenied(
-                f"Model '{self.settings.bedrock_model_id}' is not available: {message} "
-                "Check JD_BEDROCK_MODEL_ID.",
+                f"Model '{self.model_id}' is not available: {message} "
+                "Check JD_BEDROCK_MODEL_ID / JD_QUALITY_REVIEW_MODEL_ID.",
                 "",
             )
         elif error_code == "ThrottlingException":
