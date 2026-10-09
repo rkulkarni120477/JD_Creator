@@ -2,35 +2,47 @@ import { NextResponse } from 'next/server';
 
 const MOCK_MODE = process.env.JD_CREATOR_USE_MOCK === 'true' || process.env.NEXT_PUBLIC_JD_CREATOR_USE_MOCK === 'true';
 
+// Mirrors the backend response shape, built from the Data Analyst reference JD. Like the real generator it
+// states no salary, benefits or company facts that were not supplied.
 const mockJobDescription = {
-  job_title: 'Senior Product Manager',
-  company_overview:
-    'Academian is building a modern learning platform that helps teams access high-quality, role-specific enablement content across product, engineering, and recruiting workflows.',
+  job_title: 'Data Analyst – Market Research',
   role_summary:
-    'Lead the roadmap for talent and learning experiences, align product priorities with business objectives, and partner closely with design, engineering, and operations to deliver measurable value.',
-  location: 'Remote / Bengaluru, India',
-  work_arrangement: 'Hybrid',
-  employment_type: 'Full-time',
-  experience: '5+ years',
+    'Academian is seeking a data-driven and detail-oriented **Data Analyst** to support a market research project focused on validating the effectiveness and relevance of **career readiness education courses**. You will analyze primary and secondary data and translate insights into strategies that inform program design, enrollment outreach and course effectiveness.',
+  location: 'Remote',
+  work_arrangement: 'Remote',
+  employment_type: 'Contract',
+  experience: '2–4 years',
   responsibilities: [
-    'Define and prioritize the product roadmap for AI-assisted hiring and internal enablement workflows.',
-    'Partner with stakeholders to translate business objectives into clear product requirements.',
-    'Own discovery, opportunity sizing, and experimentation to improve conversion and retention.',
-    'Work closely with engineering and design teams to ship customer-centric products at scale.'
+    'Analyze and synthesize data from primary research (surveys, interviews, focus groups) and secondary research (public databases, academic studies, labor market insights).',
+    'Identify patterns, trends and correlations across student clusters, demographic segments and course categories.',
+    'Support the development of a competency framework validation strategy using quantitative and qualitative insights.',
+    'Evaluate educational performance indicators such as student engagement, course completion rates and post-course outcomes.',
+    'Design and maintain interactive dashboards and visualizations to communicate insights to internal teams and stakeholders.',
+    'Collaborate with project managers, instructional designers and enrollment strategists to turn insights into tactical actions.'
+  ],
+  education_requirements: [
+    "Bachelor's degree in Data Science, Statistics, Economics, Market Research, Educational Research, or a related field."
   ],
   required_qualifications: [
-    '5+ years in product management, ideally in B2B SaaS or platform products.',
-    'Strong analytical skills and comfort working with product metrics and experimentation.',
-    'Experience collaborating with cross-functional teams in a fast-moving environment.'
+    '2–4 years of experience in data analysis or market research, preferably in the education, workforce development or EdTech sectors.',
+    'Proficiency in data analysis tools; advanced Excel knowledge is mandatory.',
+    'Strong understanding of educational metrics such as enrollment trends, course completion and competency validation.',
+    'Ability to communicate complex findings to technical and non-technical stakeholders.'
   ],
   preferred_qualifications: [
-    'Experience in AI-enabled workflows or talent infrastructure products.',
-    'Background in hiring operations, recruiting tech, or education products.',
-    'Excellent written communication and stakeholder management skills.'
+    'Experience with education or labor market datasets (e.g., IPEDS, BLS, EMSI, NCES).',
+    'Familiarity with survey design, data cleaning and qualitative data coding.',
+    'Experience in user segmentation or cluster analysis.',
+    'Knowledge of career readiness frameworks or employability skill assessments.'
   ],
-  technical_skills: ['Product strategy', 'Roadmapping', 'SQL', 'Experimentation', 'Stakeholder management'],
-  compensation_and_benefits: 'Competitive salary, ESOPs, flexible working arrangements, and learning reimbursements.',
-  application_instructions: 'Please share your resume and a brief note on the product challenges you have solved.'
+  technical_skills: [],
+  work_environment: [
+    'Flexible, collaborative environment with opportunities for asynchronous and remote work.',
+    'May require participation in team check-ins or review meetings.'
+  ],
+  engagement_details: 'This is a remote contract opportunity.',
+  closing_statement:
+    'If you enjoy turning education data into decisions that improve career readiness programs, we encourage you to apply.'
 };
 
 export async function POST(request: Request) {
@@ -42,7 +54,14 @@ export async function POST(request: Request) {
         request_id: 'mock-request-001',
         job_description: mockJobDescription,
         assumptions: ['Used mock mode for local development and UI validation.'],
-        missing_details: []
+        missing_details: ['Contract duration and weekly hours were not supplied.'],
+        quality_warnings: [
+          {
+            severity: 'warning',
+            section: 'engagement_details',
+            message: 'Sample warning from mock mode: no contract duration is stated.'
+          }
+        ]
       });
     }
 

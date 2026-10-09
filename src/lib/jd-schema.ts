@@ -1,4 +1,4 @@
-import type { JobDescription } from '@/types/job-description';
+import type { JobDescription, QualityWarning } from '@/types/job-description';
 
 export const MIN_PROMPT_LENGTH = 10;
 export const MAX_PROMPT_LENGTH = 5000;
@@ -52,6 +52,30 @@ export function normalizeJobDescription(value: unknown): JobDescription {
   };
 }
 
+export function normalizeQualityWarnings(value: unknown): QualityWarning[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== 'object') {
+      return [];
+    }
+    const source = entry as Record<string, unknown>;
+    const message = normalizeText(source.message);
+    if (!message) {
+      return [];
+    }
+    return [
+      {
+        severity: source.severity === 'error' ? 'error' : 'warning',
+        section: normalizeText(source.section) ?? null,
+        message
+      } satisfies QualityWarning
+    ];
+  });
+}
+
 export function isValidPrompt(prompt: string): string | null {
   const trimmed = prompt.trim();
 
@@ -68,23 +92,4 @@ export function isValidPrompt(prompt: string): string | null {
   }
 
   return null;
-}
-
-export function describeWorkArrangement(value?: string | null): string {
-  const mappings: Record<string, string> = {
-    remote: 'Remote',
-    hybrid: 'Hybrid',
-    onsite: 'On-site',
-    'on-site': 'On-site',
-    fulltime: 'Full-time',
-    'full-time': 'Full-time',
-    'part-time': 'Part-time',
-    contract: 'Contract'
-  };
-
-  if (!value) {
-    return 'Not specified';
-  }
-
-  return mappings[value.toLowerCase()] ?? value;
 }

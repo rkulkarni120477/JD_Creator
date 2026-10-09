@@ -19,12 +19,24 @@ export type JobDescription = {
   closing_statement?: string | null;
 };
 
+export type QualityWarning = {
+  severity: 'error' | 'warning';
+  /** JobDescription field the problem is tied to, when there is one. */
+  section?: string | null;
+  message: string;
+};
+
+export type Tone = 'professional' | 'concise' | 'detailed';
+
 export type GenerationResult = {
   request_id?: string;
   prompt: string;
+  /** The hiring company as entered in the form; used for the PDF and Word banner. */
+  company_name?: string;
   job_description: JobDescription;
   assumptions: string[];
   missing_details: string[];
+  quality_warnings: QualityWarning[];
 };
 
 export type ApiError = {

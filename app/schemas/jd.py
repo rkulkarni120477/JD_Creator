@@ -80,7 +80,14 @@ class JobDescription(BaseModel):
     """The generated job description."""
 
     job_title: str | None = None
-    role_summary: str | None = None
+    role_summary: str | None = Field(
+        None,
+        description=(
+            "The opening paragraph, shown without a heading. Starts with '<Company> is seeking a ...' when a "
+            "company name is supplied and states the client, project or initiative the role supports. Wrap the "
+            "job title and the main focus phrase in **double asterisks**."
+        ),
+    )
     company_overview: str | None = Field(
         None,
         description=(
@@ -89,7 +96,11 @@ class JobDescription(BaseModel):
         ),
     )
     project_context: str | None = Field(
-        None, description="The client, project or initiative this role supports, only if supplied by the user."
+        None,
+        description=(
+            "Additional detail about the supplied client, project or initiative that role_summary does not already "
+            "state; null otherwise."
+        ),
     )
     location: str | None = None
     work_arrangement: str | None = None
@@ -113,7 +124,12 @@ class JobDescription(BaseModel):
         ),
     )
     engagement_details: str | None = Field(
-        None, description="Contract terms such as hours, duration, schedule flexibility, only as supplied."
+        None,
+        description=(
+            "One complete sentence on the supplied employment type(s), hours, duration and schedule flexibility, "
+            "e.g. 'This is a contract or part-time opportunity, with flexible hours based on project needs.' "
+            "Printed directly before closing_statement."
+        ),
     )
     work_environment: list[str] = Field(
         default_factory=list, description="How and where the work happens, e.g. async/remote collaboration, check-ins."

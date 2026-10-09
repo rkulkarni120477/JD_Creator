@@ -38,6 +38,7 @@ def _ba_request(**details) -> GenerateRequest:
 def _good_jd(**overrides) -> JobDescription:
     values = {
         "job_title": "Business Analyst",
+        "role_summary": "Academian is seeking a detail-oriented **Business Analyst** to modernize a client's content pipeline.",
         "location": "Remote",
         "employment_type": "Contract, Part-time",
         "experience": "5+ years",
@@ -76,6 +77,38 @@ def test_supplied_values_that_were_dropped_are_flagged(quality_service):
     assert any("supplied location 'Remote' is missing" in m for m in messages)
     assert any("'part-time' is not stated" in m for m in messages)
     assert any("minimum experience (5 years)" in m for m in messages)
+
+
+def test_remote_role_without_a_place_is_not_flagged(quality_service):
+    """The Data Analyst JD says only 'Location: Remote'; a model may put that in work_arrangement instead."""
+    warnings = quality_service.rule_checks(_ba_request(work_arrangement="remote"), _good_jd(location=None))
+    assert not any(w.section == "location" for w in warnings)
+
+    warnings = quality_service.rule_checks(_ba_request(), _good_jd(location=None, work_arrangement="Remote"))
+    assert not any(w.section == "location" for w in warnings)
+
+
+def test_opening_paragraph_must_exist_and_name_the_company(quality_service):
+    warnings = quality_service.rule_checks(_ba_request(), _good_jd(role_summary=None))
+    assert _messages(warnings) == ["No opening paragraph was generated."]
+
+    request = _ba_request(company_name="Academian")
+    assert quality_service.rule_checks(request, _good_jd()) == []
+    warnings = quality_service.rule_checks(request, _good_jd(role_summary="We are seeking a Business Analyst."))
+    assert _messages(warnings) == ["The opening paragraph does not name the hiring company 'Academian'."]
+
+
+def test_off_domain_industry_words_are_flagged_without_the_model_review(quality_service):
+    warnings = quality_service.rule_checks(_ba_request(), _good_jd(closing_statement=AVIATION_CLOSING))
+
+    assert len(warnings) == 1
+    assert warnings[0].section == "closing_statement"
+    assert "'aviation'" in warnings[0].message
+
+
+def test_industry_words_from_the_requirements_are_not_flagged(quality_service):
+    request = GenerateRequest(prompt="Business analyst for an aviation training content pipeline")
+    assert quality_service.rule_checks(request, _good_jd(closing_statement=AVIATION_CLOSING)) == []
 
 
 def test_placeholders_and_empty_core_sections_are_errors(quality_service):
@@ -117,11 +150,11 @@ async def test_review_reports_off_domain_text_and_drops_invented_excerpts(qualit
     )
 
     warnings = await quality_service.check(_ba_request(), _good_jd(closing_statement=AVIATION_CLOSING))
+    review_warnings = [w for w in warnings if w.severity == "error"]
 
-    assert len(warnings) == 1
-    assert warnings[0].severity == "error"
-    assert warnings[0].section == "closing_statement"
-    assert "aviation" in warnings[0].message
+    assert len(review_warnings) == 1
+    assert review_warnings[0].section == "closing_statement"
+    assert "unrelated to this content-pipeline role" in review_warnings[0].message
     sent = review_service.invoke_with_structured_output.call_args.args[0][1]["content"]
     assert "aviation training" in sent and "Business analyst for a content pipeline" in sent
 

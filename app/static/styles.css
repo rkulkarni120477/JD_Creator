@@ -483,6 +483,50 @@ body {
 }
 
 /* ============================================================================
+   Quality Checks
+   ============================================================================ */
+
+.quality-section {
+    margin-bottom: var(--spacing-xl);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: 1px solid #fecaca;
+    border-radius: 8px;
+    background: #fef2f2;
+}
+
+.quality-section h3 {
+    font-size: 1rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.quality-section ul {
+    margin: 0 0 0 var(--spacing-lg);
+}
+
+.quality-section li {
+    margin-bottom: var(--spacing-sm);
+    font-size: 0.95rem;
+}
+
+.quality-error strong {
+    color: #b91c1c;
+}
+
+.quality-warning strong {
+    color: #b45309;
+}
+
+.checkbox-group {
+    border: none;
+    padding: 0;
+}
+
+.checkbox-group label {
+    margin-right: var(--spacing-lg);
+    font-size: 0.95rem;
+}
+
+/* ============================================================================
    Assumptions Section
    ============================================================================ */
 

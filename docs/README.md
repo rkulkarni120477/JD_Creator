@@ -154,7 +154,7 @@ pytest -m "not bedrock_smoke"
 
 ```bash
 # Frontend tests (JavaScript, Node.js required)
-node tests/test_frontend.js
+npm test   # legacy UI + Next.js formatter tests (Node 22.6+)
 ```
 
 ### Linting
@@ -401,9 +401,10 @@ Use the **Bedrock VPC endpoint** ($7/month) instead of NAT to save ~$26/month.
 pytest tests/test_schemas.py -v
 pytest tests/test_jd_service.py -v
 pytest tests/test_api.py -v
+pytest tests/test_quality_service.py -v
 
 # Frontend (JavaScript)
-node tests/test_frontend.js
+npm test   # legacy UI + Next.js formatter tests (Node 22.6+)
 ```
 
 ### Real Bedrock Smoke Test
@@ -443,7 +444,8 @@ Requires valid AWS credentials and Bedrock model access.
 
 - [ ] User authentication and saved JD history
 - [ ] Role templates (e.g., "Start from Software Engineer template")
-- [ ] Markdown/ATS export formats (PDF, Google Docs)
+- [x] Export formats: Word (.docx), PDF, Markdown, plain text, rich copy-to-clipboard
+- [ ] Google Docs export
 - [ ] Batch JD generation from CSV
 - [ ] Custom prompt management and versioning
 - [ ] Analytics dashboard (most common roles, avg response time)

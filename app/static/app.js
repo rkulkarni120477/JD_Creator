@@ -3,72 +3,22 @@
  * Handles form submission, API calls, and JD rendering
  */
 
-// ============================================================================
-// Utility Functions
-// ============================================================================
+// Layout helpers come from jd-format.js, which index.html loads first
+const { parseInline, jdMetadata, jdSections, jdToMarkdown } = window.JDFormat;
 
-/**
- * Convert a JobDescription object to Markdown format.
- * Excludes internal metadata and assumptions.
- */
-function jdToMarkdown(jd) {
-    const lines = [];
+const SECTION_LABELS = {
+    job_title: 'Job title', role_summary: 'Opening paragraph', company_overview: 'Company overview',
+    project_context: 'About the project', location: 'Location', work_arrangement: 'Work arrangement',
+    employment_type: 'Job type', experience: 'Experience', responsibilities: 'Key responsibilities',
+    required_qualifications: 'Required qualifications', education_requirements: 'Education',
+    preferred_qualifications: 'Preferred qualifications', technical_skills: 'Technical skills',
+    engagement_details: 'Closing paragraph', work_environment: 'Work environment',
+    compensation_and_benefits: 'Compensation and benefits', application_instructions: 'Application instructions',
+    closing_statement: 'Closing paragraph',
+};
 
-    if (jd.job_title) {
-        lines.push(`# ${jd.job_title}`);
-        lines.push('');
-    }
-
-    // Meta information
-    const metaLines = [];
-    if (jd.location) metaLines.push(jd.location);
-    if (jd.work_arrangement) metaLines.push(jd.work_arrangement);
-    if (jd.employment_type) metaLines.push(jd.employment_type);
-    if (jd.experience) metaLines.push(`${jd.experience} experience`);
-    if (metaLines.length > 0) {
-        lines.push(`*${metaLines.join(' • ')}*`);
-        lines.push('');
-    }
-
-    jdSections(jd).forEach(([title, content]) => {
-        if (!content || (Array.isArray(content) && content.length === 0)) return;
-        if (title) lines.push(`## ${title}`);
-        if (Array.isArray(content)) {
-            content.forEach(item => lines.push(`- ${item}`));
-        } else {
-            lines.push(content);
-        }
-        lines.push('');
-    });
-
-    return lines.join('\n').trim();
-}
-
-/**
- * Ordered [heading, content] pairs for the JD body; a null heading renders as a bare paragraph.
- * Keep in step with getJobDescriptionSections in src/lib/jd-formatters.ts.
- */
-function jdSections(jd) {
-    return [
-        ['Company Overview', jd.company_overview],
-        ['About the Project', jd.project_context],
-        ['Role Summary', jd.role_summary],
-        ['Key Responsibilities', jd.responsibilities],
-        ['Required Qualifications', jd.required_qualifications],
-        ['Education', jd.education_requirements],
-        ['Preferred Qualifications', jd.preferred_qualifications],
-        ['Technical Skills', jd.technical_skills],
-        ['Engagement Details', jd.engagement_details],
-        ['Work Environment', jd.work_environment],
-        ['Compensation and Benefits', jd.compensation_and_benefits],
-        ['Application Instructions', jd.application_instructions],
-        [null, jd.closing_statement],
-    ];
-}
-
-// For testing: expose to global scope (CommonJS / Node.js)
-if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
-    module.exports = { jdToMarkdown };
+function splitList(value) {
+    return value ? value.split(',').map(t => t.trim()).filter(t => t) : [];
 }
 
 // ============================================================================
@@ -84,6 +34,8 @@ const resultsSection = document.getElementById('resultsSection');
 const jdContent = document.getElementById('jdContent');
 const assumptionsSection = document.getElementById('assumptionsSection');
 const assumptionsContent = document.getElementById('assumptionsContent');
+const qualitySection = document.getElementById('qualitySection');
+const qualityContent = document.getElementById('qualityContent');
 const copyBtn = document.getElementById('copyBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const regenerateBtn = document.getElementById('regenerateBtn');
@@ -135,17 +87,22 @@ async function generateJD() {
             prompt: formData.get('prompt'),
             details: {
                 job_title: formData.get('job_title') || null,
-                technologies: formData.get('technologies')
-                    ? formData.get('technologies').split(',').map(t => t.trim()).filter(t => t)
-                    : [],
+                technologies: splitList(formData.get('technologies')),
                 experience_min: formData.get('experience_min') ? parseInt(formData.get('experience_min')) : null,
                 experience_max: formData.get('experience_max') ? parseInt(formData.get('experience_max')) : null,
                 location: formData.get('location') || null,
                 work_arrangement: formData.get('work_arrangement') || null,
-                employment_type: formData.get('employment_type') || null,
+                // Checkboxes in document order keep "contract, part-time" stable regardless of click order
+                employment_type: formData.getAll('employment_type').join(', ') || null,
                 industry: formData.get('industry') || null,
                 company_name: formData.get('company_name') || null,
                 company_description: formData.get('company_description') || null,
+                client_context: formData.get('client_context') || null,
+                education: formData.get('education') || null,
+                preferred_background: splitList(formData.get('preferred_background')),
+                collaborators: splitList(formData.get('collaborators')),
+                engagement_details: formData.get('engagement_details') || null,
+                work_environment: formData.get('work_environment') || null,
             },
             tone: formData.get('tone'),
         };
@@ -199,18 +156,27 @@ function renderJD(response) {
     const jd = response.job_description;
 
     // Clear content
-    jdContent.innerHTML = '';
+    jdContent.replaceChildren();
 
-    // Helper to safely add text content
+    // Appends text with **bold** runs as <strong>, using text nodes only
+    function appendRichText(parent, text) {
+        parseInline(text).forEach(({ text: run, bold }) => {
+            if (bold) {
+                const strong = document.createElement('strong');
+                strong.textContent = run;
+                parent.appendChild(strong);
+            } else {
+                parent.appendChild(document.createTextNode(run));
+            }
+        });
+    }
+
     function createSection(title, content) {
-        if (!content) return;
-        if (Array.isArray(content) && content.length === 0) return;
-
         const section = document.createElement('section');
 
         if (title) {
             const heading = document.createElement('h2');
-            heading.textContent = title;
+            heading.textContent = `${title}:`;
             section.appendChild(heading);
         }
 
@@ -218,13 +184,13 @@ function renderJD(response) {
             const ul = document.createElement('ul');
             content.forEach(item => {
                 const li = document.createElement('li');
-                li.textContent = item;
+                appendRichText(li, item);
                 ul.appendChild(li);
             });
             section.appendChild(ul);
         } else {
             const p = document.createElement('p');
-            p.textContent = content;
+            appendRichText(p, content);
             section.appendChild(p);
         }
 
@@ -237,67 +203,24 @@ function renderJD(response) {
         jdContent.appendChild(titleHeading);
     }
 
-    // Render metadata
-    if (jd.location || jd.work_arrangement || jd.employment_type || jd.experience) {
+    // Render labelled header lines ("Location: Remote", "Job Type: Contract")
+    const metadata = jdMetadata(jd);
+    if (metadata.length > 0) {
         const metaDiv = document.createElement('div');
         metaDiv.className = 'jd-meta';
-
-        if (jd.location) {
+        metadata.forEach(({ label, value }) => {
             const item = document.createElement('div');
             item.className = 'jd-meta-item';
-            const label = document.createElement('div');
-            label.className = 'jd-meta-label';
-            label.textContent = 'Location';
-            const value = document.createElement('div');
-            value.className = 'jd-meta-value';
-            value.textContent = jd.location;
-            item.appendChild(label);
-            item.appendChild(value);
+            const labelEl = document.createElement('div');
+            labelEl.className = 'jd-meta-label';
+            labelEl.textContent = label;
+            const valueEl = document.createElement('div');
+            valueEl.className = 'jd-meta-value';
+            valueEl.textContent = value;
+            item.appendChild(labelEl);
+            item.appendChild(valueEl);
             metaDiv.appendChild(item);
-        }
-
-        if (jd.work_arrangement) {
-            const item = document.createElement('div');
-            item.className = 'jd-meta-item';
-            const label = document.createElement('div');
-            label.className = 'jd-meta-label';
-            label.textContent = 'Work Arrangement';
-            const value = document.createElement('div');
-            value.className = 'jd-meta-value';
-            value.textContent = jd.work_arrangement;
-            item.appendChild(label);
-            item.appendChild(value);
-            metaDiv.appendChild(item);
-        }
-
-        if (jd.employment_type) {
-            const item = document.createElement('div');
-            item.className = 'jd-meta-item';
-            const label = document.createElement('div');
-            label.className = 'jd-meta-label';
-            label.textContent = 'Employment Type';
-            const value = document.createElement('div');
-            value.className = 'jd-meta-value';
-            value.textContent = jd.employment_type;
-            item.appendChild(label);
-            item.appendChild(value);
-            metaDiv.appendChild(item);
-        }
-
-        if (jd.experience) {
-            const item = document.createElement('div');
-            item.className = 'jd-meta-item';
-            const label = document.createElement('div');
-            label.className = 'jd-meta-label';
-            label.textContent = 'Experience';
-            const value = document.createElement('div');
-            value.className = 'jd-meta-value';
-            value.textContent = jd.experience;
-            item.appendChild(label);
-            item.appendChild(value);
-            metaDiv.appendChild(item);
-        }
-
+        });
         jdContent.appendChild(metaDiv);
     }
 
@@ -307,9 +230,11 @@ function renderJD(response) {
     // Show results
     resultsSection.style.display = 'block';
 
+    renderQualityWarnings(response.quality_warnings || []);
+
     // Render assumptions if present
     if (response.assumptions.length > 0 || response.missing_details.length > 0) {
-        assumptionsContent.innerHTML = '';
+        assumptionsContent.replaceChildren();
 
         if (response.assumptions.length > 0) {
             const h4 = document.createElement('h4');
@@ -344,6 +269,30 @@ function renderJD(response) {
 
     // Scroll to results
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function renderQualityWarnings(warnings) {
+    qualityContent.replaceChildren();
+    if (warnings.length === 0) {
+        qualitySection.style.display = 'none';
+        return;
+    }
+
+    // Errors first: they mark text that should not be published as-is
+    const ordered = [...warnings].sort((a, b) => (b.severity === 'error') - (a.severity === 'error'));
+    const ul = document.createElement('ul');
+    ordered.forEach(warning => {
+        const li = document.createElement('li');
+        li.className = warning.severity === 'error' ? 'quality-error' : 'quality-warning';
+        const prefix = document.createElement('strong');
+        const where = warning.section ? (SECTION_LABELS[warning.section] || warning.section) : null;
+        prefix.textContent = `${warning.severity === 'error' ? 'Fix' : 'Check'}${where ? ` · ${where}` : ''}: `;
+        li.appendChild(prefix);
+        li.appendChild(document.createTextNode(warning.message));
+        ul.appendChild(li);
+    });
+    qualityContent.appendChild(ul);
+    qualitySection.style.display = 'block';
 }
 
 // ============================================================================
@@ -401,9 +350,11 @@ regenerateBtn.addEventListener('click', async () => {
 clearBtn.addEventListener('click', () => {
     generateForm.reset();
     resultsSection.style.display = 'none';
-    jdContent.innerHTML = '';
+    jdContent.replaceChildren();
     assumptionsSection.style.display = 'none';
-    assumptionsContent.innerHTML = '';
+    assumptionsContent.replaceChildren();
+    qualitySection.style.display = 'none';
+    qualityContent.replaceChildren();
     currentResponse = null;
     clearMessages();
     promptInput.focus();
@@ -428,7 +379,7 @@ function showError(message, requestId = '') {
     if (requestId) {
         content += `\n(Request ID: ${requestId})`;
     }
-    errorMessage.innerHTML = '';
+    errorMessage.replaceChildren();
     errorMessage.textContent = content;
     errorMessage.classList.add('visible');
 }

@@ -1,217 +1,132 @@
 /**
- * Frontend tests for JD Creator
- * Run with: node tests/test_frontend.js
+ * Tests for the FastAPI-served UI (app/static). Run with: npm test  (or: node --test tests/test_frontend.js)
  */
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
-const assert = require('assert');
+const { parseInline, jdMetadata, jdSections, jdToMarkdown } = require('../app/static/jd-format.js');
 
-// Mock the jdToMarkdown function extraction for Node.js
-const { jdToMarkdown } = require('../app/static/app.js');
+const STATIC_DIR = path.join(__dirname, '..', 'app', 'static');
 
-// Test data
-const testJD = {
-    job_title: "Senior Python Developer",
-    role_summary: "Build production-grade Python applications",
-    company_overview: "Leading AI company",
-    location: "Bengaluru",
-    work_arrangement: "hybrid",
-    employment_type: "full-time",
-    experience: "5–8 years",
-    responsibilities: [
-        "Design and build scalable backend systems",
-        "Mentor junior developers"
-    ],
-    required_qualifications: [
-        "5+ years Python experience",
-        "Experience with FastAPI"
-    ],
-    preferred_qualifications: [
-        "AWS experience",
-        "LangChain experience"
-    ],
-    technical_skills: [
-        "Python",
-        "FastAPI",
-        "AWS",
-        "Docker",
-        "PostgreSQL"
-    ],
-    compensation_and_benefits: "Competitive salary, health insurance",
-    application_instructions: "Apply on our careers page"
+// Shaped like the Business Analyst reference JD
+const baJD = {
+    job_title: 'Business Analyst',
+    role_summary: 'Academian is seeking a detail-oriented **Business Analyst** to support an initiative to streamline and modernize their client\'s content pipeline.',
+    location: 'Remote',
+    work_arrangement: 'remote',
+    employment_type: 'contract, part-time',
+    experience: '5+ years',
+    responsibilities: ['Conduct structured interviews with stakeholders', 'Develop clear, structured documentation'],
+    required_qualifications: ['5+ years of experience as a Business Analyst'],
+    education_requirements: ["Bachelor's degree in Information Systems (preferred)"],
+    preferred_qualifications: ['Experience with taxonomies and metadata models'],
+    engagement_details: 'This is a contract or part-time opportunity, with flexible hours based on project needs.',
+    closing_statement: 'If you enjoy modernizing content operations, we encourage you to apply.',
 };
 
-// ============================================================================
-// Test Suite: jdToMarkdown
-// ============================================================================
+describe('jdMetadata', () => {
+    it('produces labelled header lines and drops a work arrangement the location already states', () => {
+        assert.deepEqual(jdMetadata(baJD), [
+            { label: 'Location', value: 'Remote' },
+            { label: 'Job Type', value: 'Contract or Part-time' },
+            { label: 'Experience', value: '5+ years' },
+        ]);
+    });
+
+    it('keeps a distinct work arrangement and prose employment types', () => {
+        const items = jdMetadata({ location: 'Bengaluru', work_arrangement: 'hybrid', employment_type: 'Full-time (permanent)' });
+        assert.deepEqual(items, [
+            { label: 'Location', value: 'Bengaluru' },
+            { label: 'Work Arrangement', value: 'Hybrid' },
+            { label: 'Job Type', value: 'Full-time (permanent)' },
+        ]);
+    });
+});
+
+describe('jdSections', () => {
+    it('opens with an unheaded summary and ends with engagement terms plus the closing', () => {
+        const sections = jdSections(baJD);
+        assert.equal(sections[0][0], null);
+        assert.match(sections[0][1], /^Academian is seeking/);
+
+        const [heading, closing] = sections[sections.length - 1];
+        assert.equal(heading, null);
+        assert.equal(closing, `${baJD.engagement_details} ${baJD.closing_statement}`);
+        assert.ok(!sections.some(([title]) => title === 'Engagement Details' || title === 'Education'));
+    });
+
+    it('places education at the top of the matching qualifications list', () => {
+        const sections = Object.fromEntries(jdSections({
+            ...baJD,
+            education_requirements: ["Bachelor's degree in Statistics", "Master's degree preferred"],
+        }));
+        assert.equal(sections['Required Qualifications'][0], "Bachelor's degree in Statistics");
+        assert.equal(sections['Preferred Qualifications'][0], "Master's degree preferred");
+    });
+
+    it('omits empty and missing sections', () => {
+        const titles = jdSections({ job_title: 'Developer', role_summary: 'A role', responsibilities: [], company_overview: null })
+            .map(([title]) => title);
+        assert.deepEqual(titles, [null]);
+    });
+});
+
+describe('parseInline', () => {
+    it('splits **bold** runs and leaves stray asterisks as text', () => {
+        assert.deepEqual(parseInline('a **Data Analyst** for * reasons'), [
+            { text: 'a ', bold: false },
+            { text: 'Data Analyst', bold: true },
+            { text: ' for * reasons', bold: false },
+        ]);
+    });
+});
 
 describe('jdToMarkdown', () => {
-    it('should generate valid markdown', () => {
-        const markdown = jdToMarkdown(testJD);
-        assert(typeof markdown === 'string', 'Output should be a string');
-        assert(markdown.length > 0, 'Output should not be empty');
+    const markdown = jdToMarkdown(baJD);
+
+    it('renders the title, labelled header and sections in reference-JD order', () => {
+        assert.ok(markdown.startsWith('# Business Analyst\n\n**Location:** Remote  \n**Job Type:** Contract or Part-time'));
+        const order = ['Academian is seeking', '## Key Responsibilities', '## Required Qualifications', '## Preferred Qualifications', 'This is a contract'];
+        const positions = order.map(text => markdown.indexOf(text));
+        assert.ok(positions.every(pos => pos >= 0), `missing one of ${order}`);
+        assert.deepEqual([...positions].sort((a, b) => a - b), positions);
     });
 
-    it('should include job title', () => {
-        const markdown = jdToMarkdown(testJD);
-        assert(markdown.includes(testJD.job_title), 'Should include job title');
-    });
-
-    it('should include location and meta info', () => {
-        const markdown = jdToMarkdown(testJD);
-        assert(markdown.includes(testJD.location), 'Should include location');
-        assert(markdown.includes(testJD.experience), 'Should include experience');
-    });
-
-    it('should include all sections in order', () => {
-        const markdown = jdToMarkdown(testJD);
-        const jobTitleIndex = markdown.indexOf(testJD.job_title);
-        const companySummaryIndex = markdown.indexOf('Company Overview');
-        const responsibilitiesIndex = markdown.indexOf('Key Responsibilities');
-
-        assert(jobTitleIndex >= 0, 'Should have job title');
-        assert(companySummaryIndex > jobTitleIndex, 'Company should come after job title');
-        assert(responsibilitiesIndex > companySummaryIndex, 'Responsibilities should come after company');
-    });
-
-    it('should include all responsibilities', () => {
-        const markdown = jdToMarkdown(testJD);
-        testJD.responsibilities.forEach(resp => {
-            assert(markdown.includes(resp), `Should include responsibility: ${resp}`);
-        });
-    });
-
-    it('should include technical skills', () => {
-        const markdown = jdToMarkdown(testJD);
-        testJD.technical_skills.forEach(skill => {
-            assert(markdown.includes(skill), `Should include skill: ${skill}`);
-        });
-    });
-
-    it('should omit empty sections', () => {
-        const jdWithEmpty = {
-            job_title: "Developer",
-            role_summary: "A role",
-            responsibilities: [],  // Empty
-            required_qualifications: []  // Empty
-        };
-        const markdown = jdToMarkdown(jdWithEmpty);
-        // Should not have "## Required Qualifications" if empty
-        assert(!markdown.includes('## Required Qualifications') ||
-               markdown.split('## Required Qualifications').length <= 2,
-               'Should omit empty sections');
-    });
-
-    it('should handle null/undefined fields', () => {
-        const jdWithNulls = {
-            job_title: "Developer",
-            role_summary: "A role",
-            company_overview: null,
-            location: undefined
-        };
-        const markdown = jdToMarkdown(jdWithNulls);
-        assert(typeof markdown === 'string', 'Should handle null fields');
-        assert(markdown.length > 0, 'Should still produce output');
-    });
-
-    it('should use markdown formatting for lists', () => {
-        const markdown = jdToMarkdown(testJD);
-        // Check for markdown list items (- )
-        assert(/^- /m.test(markdown), 'Should use markdown bullet points');
-    });
-
-    it('should exclude assumptions from output', () => {
-        const markdown = jdToMarkdown(testJD);
-        assert(!markdown.includes('Assumptions'), 'Should not include assumptions label');
-        assert(!markdown.includes('Missing Details'), 'Should not include missing details label');
+    it('keeps bold markers and excludes assumptions', () => {
+        assert.ok(markdown.includes('**Business Analyst**'));
+        assert.ok(!markdown.includes('Assumptions') && !markdown.includes('Missing Details'));
     });
 });
 
-// ============================================================================
-// Test Suite: DOM Safety
-// ============================================================================
+describe('DOM safety', () => {
+    const appCode = fs.readFileSync(path.join(STATIC_DIR, 'app.js'), 'utf8');
 
-describe('DOM Safety', () => {
-    it('should not use innerHTML in app.js', () => {
-        const fs = require('fs');
-        const appCode = fs.readFileSync('./app/static/app.js', 'utf8');
-
-        // Check for dangerous methods
-        const hasInnerHTML = /\.innerHTML\s*=/.test(appCode);
-        const hasInsertAdjacentHTML = /insertAdjacentHTML/.test(appCode);
-        const hasEval = /\beval\s*\(/.test(appCode);
-
-        assert(!hasInnerHTML, 'Should not use .innerHTML =');
-        assert(!hasInsertAdjacentHTML, 'Should not use insertAdjacentHTML');
-        assert(!hasEval, 'Should not use eval()');
+    it('never assigns HTML strings or evaluates code', () => {
+        assert.ok(!/\.innerHTML\s*=/.test(appCode), 'Should not use .innerHTML =');
+        assert.ok(!/insertAdjacentHTML/.test(appCode), 'Should not use insertAdjacentHTML');
+        assert.ok(!/\beval\s*\(/.test(appCode), 'Should not use eval()');
     });
 
-    it('should use textContent for safe rendering', () => {
-        const fs = require('fs');
-        const appCode = fs.readFileSync('./app/static/app.js', 'utf8');
-
-        // Check for safe methods
-        const hasTextContent = /\.textContent\s*=/.test(appCode);
-        assert(hasTextContent, 'Should use .textContent for rendering');
-    });
-
-    it('should use createElement for DOM construction', () => {
-        const fs = require('fs');
-        const appCode = fs.readFileSync('./app/static/app.js', 'utf8');
-
-        const hasCreateElement = /createElement\(/.test(appCode);
-        assert(hasCreateElement, 'Should use createElement for safe DOM construction');
+    it('builds the DOM with createElement and text nodes', () => {
+        assert.ok(/createElement\(/.test(appCode));
+        assert.ok(/createTextNode\(/.test(appCode));
     });
 });
 
-// ============================================================================
-// Test Suite: Module exports
-// ============================================================================
+describe('index.html', () => {
+    const html = fs.readFileSync(path.join(STATIC_DIR, 'index.html'), 'utf8');
 
-describe('Module exports', () => {
-    it('should export jdToMarkdown for Node.js', () => {
-        assert(typeof jdToMarkdown === 'function', 'jdToMarkdown should be exported');
+    it('has an input for every JobDetails field the reference JDs need', () => {
+        for (const name of ['client_context', 'education', 'preferred_background', 'collaborators', 'engagement_details', 'work_environment', 'tone']) {
+            assert.ok(html.includes(`name="${name}"`), `missing input ${name}`);
+        }
+        assert.equal((html.match(/type="checkbox" name="employment_type"/g) || []).length, 3);
+    });
+
+    it('loads jd-format.js before app.js and has a quality-warnings area', () => {
+        assert.ok(html.indexOf('/jd-format.js') < html.indexOf('/app.js'));
+        assert.ok(html.includes('id="qualitySection"'));
     });
 });
-
-// ============================================================================
-// Helper: simple describe/it implementation for Node.js
-// ============================================================================
-
-let suiteStack = [];
-let testCount = 0;
-let passCount = 0;
-let failCount = 0;
-
-function describe(name, fn) {
-    suiteStack.push(name);
-    console.log(`\n${'  '.repeat(suiteStack.length - 1)}${name}`);
-    fn();
-    suiteStack.pop();
-}
-
-function it(name, fn) {
-    testCount++;
-    try {
-        fn();
-        passCount++;
-        console.log(`${'  '.repeat(suiteStack.length)}✓ ${name}`);
-    } catch (error) {
-        failCount++;
-        console.log(`${'  '.repeat(suiteStack.length)}✗ ${name}`);
-        console.log(`${'  '.repeat(suiteStack.length)}  ${error.message}`);
-    }
-}
-
-// Export for use
-if (typeof module !== 'undefined') {
-    Object.assign(global, { describe, it });
-}
-
-// Summary
-if (require.main === module) {
-    setTimeout(() => {
-        console.log(`\n${'='.repeat(60)}`);
-        console.log(`Tests: ${testCount} | Passed: ${passCount} | Failed: ${failCount}`);
-        process.exit(failCount > 0 ? 1 : 0);
-    }, 100);
-}

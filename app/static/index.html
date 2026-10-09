@@ -35,6 +35,8 @@
                     <span>Quick examples:</span>
                     <button type="button" class="example-chip" data-example="Create a job description for a Senior Python Developer with 5–8 years of experience in Python, FastAPI, LangChain, AWS Bedrock, Docker, and PostgreSQL. The role is based in Bengaluru with a hybrid work arrangement. The candidate should mentor junior developers and build production AI applications.">Senior Python Developer</button>
                     <button type="button" class="example-chip" data-example="Frontend Engineer with 3–5 years of React.js, TypeScript, and modern CSS experience. Remote first, full-time. Collaborate with design and backend teams to build responsive web applications.">Frontend Engineer</button>
+                    <button type="button" class="example-chip" data-example="Business Analyst with 5+ years of experience to lead stakeholder interviews and requirements gathering for modernizing a client's print and digital content pipeline. Experience with taxonomies and metadata models is a plus.">Business Analyst</button>
+                    <button type="button" class="example-chip" data-example="Data Analyst with 2-4 years of experience for a market research project validating career readiness courses. Analyze surveys, focus groups and labor market data (IPEDS, BLS); advanced Excel is mandatory.">Data Analyst</button>
                     <button type="button" class="example-chip" data-example="Product Manager with 5+ years of experience in B2B SaaS, product strategy, and data-driven decision making. Lead cross-functional teams. Based in San Francisco or remote.">Product Manager</button>
                 </div>
 
@@ -115,15 +117,12 @@
                             </select>
                         </div>
 
-                        <div class="form-group">
-                            <label for="employmentType" class="form-label">Employment Type</label>
-                            <select id="employmentType" name="employment_type" class="input">
-                                <option value="">Not specified</option>
-                                <option value="full-time">Full-time</option>
-                                <option value="part-time">Part-time</option>
-                                <option value="contract">Contract</option>
-                            </select>
-                        </div>
+                        <fieldset class="form-group checkbox-group">
+                            <legend class="form-label">Employment Type</legend>
+                            <label><input type="checkbox" name="employment_type" value="full-time"> Full-time</label>
+                            <label><input type="checkbox" name="employment_type" value="part-time"> Part-time</label>
+                            <label><input type="checkbox" name="employment_type" value="contract"> Contract</label>
+                        </fieldset>
 
                         <div class="form-group">
                             <label for="industry" class="form-label">Industry / Domain</label>
@@ -157,6 +156,77 @@
                                 maxlength="1000"
                                 placeholder="Brief description of the company"
                             ></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="clientContext" class="form-label">Client / Project Context</label>
+                            <textarea
+                                id="clientContext"
+                                name="client_context"
+                                class="textarea small"
+                                maxlength="1000"
+                                placeholder="The client, project or initiative this role supports"
+                            ></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="education" class="form-label">Education</label>
+                            <input
+                                id="education"
+                                type="text"
+                                name="education"
+                                class="input"
+                                maxlength="500"
+                                placeholder="e.g., Bachelor's in Statistics, Economics, or a related field"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="preferredBackground" class="form-label">Preferred Sector Background (comma-separated)</label>
+                            <input
+                                id="preferredBackground"
+                                type="text"
+                                name="preferred_background"
+                                class="input"
+                                maxlength="1000"
+                                placeholder="e.g., EdTech, publishing"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="collaborators" class="form-label">Works With (comma-separated)</label>
+                            <input
+                                id="collaborators"
+                                type="text"
+                                name="collaborators"
+                                class="input"
+                                maxlength="1000"
+                                placeholder="e.g., Content Strategists, Engineering"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="engagementDetails" class="form-label">Engagement Details</label>
+                            <input
+                                id="engagementDetails"
+                                type="text"
+                                name="engagement_details"
+                                class="input"
+                                maxlength="500"
+                                placeholder="e.g., Flexible hours based on project needs; 6-month contract"
+                            >
+                        </div>
+
+                        <div class="form-group">
+                            <label for="workEnvironment" class="form-label">Work Environment</label>
+                            <input
+                                id="workEnvironment"
+                                type="text"
+                                name="work_environment"
+                                class="input"
+                                maxlength="500"
+                                placeholder="e.g., Asynchronous and remote; occasional team check-ins"
+                            >
                         </div>
                     </div>
                 </details>
@@ -205,6 +275,12 @@
                     </button>
                 </div>
 
+                <!-- Post-generation quality checks -->
+                <div id="qualitySection" class="quality-section" style="display: none;" role="status">
+                    <h3>Review before publishing</h3>
+                    <div id="qualityContent"></div>
+                </div>
+
                 <!-- Job description content -->
                 <div id="jdContent" class="jd-content"></div>
 
@@ -221,6 +297,7 @@
         </footer>
     </div>
 
+    <script src="/jd-format.js"></script>
     <script src="/app.js"></script>
 </body>
 </html>

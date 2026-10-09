@@ -1,21 +1,28 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Download, FileText, Printer, Sparkles, Trash2 } from 'lucide-react';
+import { Check, Copy, Download, FileText, FileType, Printer, Sparkles, Trash2 } from 'lucide-react';
 import { AppHeader } from '@/components/AppHeader';
 import { AssumptionsPanel } from '@/components/AssumptionsPanel';
 import { EmptyState } from '@/components/EmptyState';
 import { ErrorMessage } from '@/components/ErrorMessage';
 import { ExamplePrompts } from '@/components/ExamplePrompts';
-import { downloadMarkdown, downloadPdf, downloadText } from '@/lib/jd-export';
-import { getJobDescriptionMetadata, getJobDescriptionSections } from '@/lib/jd-formatters';
-import { isValidPrompt, MIN_PROMPT_LENGTH, normalizeJobDescription } from '@/lib/jd-schema';
-import type { ApiError, GenerationResult } from '@/types/job-description';
+import { QualityWarningsPanel } from '@/components/QualityWarningsPanel';
+import { copyToClipboard, downloadMarkdown, downloadPdf, downloadText, downloadWord } from '@/lib/jd-export';
+import { getJobDescriptionMetadata, getJobDescriptionSections, parseInline } from '@/lib/jd-formatters';
+import { isValidPrompt, MIN_PROMPT_LENGTH, normalizeJobDescription, normalizeQualityWarnings } from '@/lib/jd-schema';
+import type { ApiError, GenerationResult, Tone } from '@/types/job-description';
 
 const examplePrompts = [
   'Senior Python Developer with 5-8 years of Python, FastAPI, AWS, Docker, and PostgreSQL experience. Based in Bengaluru with a hybrid work arrangement.',
   'Business Analyst with 5+ years of experience to lead stakeholder interviews and requirements gathering for modernizing a client\'s print and digital content pipeline. Experience with taxonomies and metadata models is a plus.',
   'Data Analyst with 2-4 years of experience for a market research project validating career readiness courses. Analyze surveys, focus groups and labor market data (IPEDS, BLS); advanced Excel is mandatory.'
+];
+
+const toneOptions: Array<{ value: Tone; label: string }> = [
+  { value: 'professional', label: 'Professional' },
+  { value: 'concise', label: 'Concise' },
+  { value: 'detailed', label: 'Detailed' }
 ];
 
 const employmentTypeOptions = [
@@ -42,9 +49,10 @@ type FormState = {
   collaborators: string;
   engagement_details: string;
   work_environment: string;
+  tone: Tone;
 };
 
-type TextField = Exclude<keyof FormState, 'employment_types'>;
+type TextField = Exclude<keyof FormState, 'employment_types' | 'tone'>;
 
 const initialState: FormState = {
   prompt: '',
@@ -63,8 +71,20 @@ const initialState: FormState = {
   preferred_background: '',
   collaborators: '',
   engagement_details: '',
-  work_environment: ''
+  work_environment: '',
+  tone: 'professional'
 };
+
+/** Renders **bold** runs from the model's text without interpreting any other markup. */
+function RichText({ text }: { text: string }) {
+  return (
+    <>
+      {parseInline(text).map((segment, index) =>
+        segment.bold ? <strong key={index} className="font-semibold text-slate-900">{segment.text}</strong> : segment.text
+      )}
+    </>
+  );
+}
 
 function splitList(value: string): string[] {
   return value
@@ -78,6 +98,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [result, setResult] = useState<GenerationResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const promptLengthLabel = useMemo(() => `${form.prompt.trim().length} / ${Math.max(MIN_PROMPT_LENGTH, 5000)}`, [form.prompt]);
 
@@ -132,7 +153,7 @@ export default function HomePage() {
           engagement_details: form.engagement_details.trim() || undefined,
           work_environment: form.work_environment.trim() || undefined
         },
-        tone: 'professional'
+        tone: form.tone
       };
 
       const response = await fetch('/api/jd/generate', {
@@ -154,13 +175,15 @@ export default function HomePage() {
       const normalized = {
         request_id: String(data.request_id || 'generated'),
         prompt: form.prompt.trim(),
+        company_name: form.company_name.trim() || undefined,
         job_description: normalizeJobDescription(data.job_description),
         assumptions: Array.isArray(data.assumptions)
           ? data.assumptions.filter((entry: unknown): entry is string => typeof entry === 'string')
           : [],
         missing_details: Array.isArray(data.missing_details)
           ? data.missing_details.filter((entry: unknown): entry is string => typeof entry === 'string')
-          : []
+          : [],
+        quality_warnings: normalizeQualityWarnings(data.quality_warnings)
       } satisfies GenerationResult;
 
       setResult(normalized);
@@ -176,6 +199,19 @@ export default function HomePage() {
     }
   }
 
+  async function handleCopy() {
+    if (!result) {
+      return;
+    }
+    try {
+      await copyToClipboard(result.job_description);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError({ message: 'Copying was blocked by the browser. Use one of the download options instead.', code: 'COPY_FAILED' });
+    }
+  }
+
   function handleClear() {
     setForm(initialState);
     setError(null);
@@ -183,7 +219,8 @@ export default function HomePage() {
   }
 
   const jdSections = result ? getJobDescriptionSections(result.job_description) : [];
-  const jdMetadata = result ? getJobDescriptionMetadata(result.job_description) : '';
+  const jdMetadata = result ? getJobDescriptionMetadata(result.job_description) : [];
+  const exportOptions = { companyName: result?.company_name };
 
   return (
     <>
@@ -303,6 +340,15 @@ export default function HomePage() {
                 </div>
               </div>
 
+              <div className="max-w-xs">
+                <label className="label" htmlFor="tone">Writing tone</label>
+                <select id="tone" value={form.tone} onChange={(e) => setForm((current) => ({ ...current, tone: e.target.value as Tone }))} className="input">
+                  {toneOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </div>
+
               <div className="flex flex-wrap gap-3 no-print">
                 <button type="submit" className="primary-btn" disabled={isLoading}>
                   {isLoading ? 'Generating…' : 'Generate JD'}
@@ -323,14 +369,20 @@ export default function HomePage() {
                 </div>
                 {result ? (
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" className="secondary-btn" onClick={() => result && downloadMarkdown(result.job_description)}>
+                    <button type="button" className="secondary-btn" onClick={handleCopy} aria-live="polite">
+                      {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />} {copied ? 'Copied' : 'Copy'}
+                    </button>
+                    <button type="button" className="secondary-btn" onClick={() => downloadWord(result.job_description, exportOptions)}>
+                      <FileType className="mr-2 h-4 w-4" /> Word
+                    </button>
+                    <button type="button" className="secondary-btn" onClick={() => downloadPdf(result.job_description, exportOptions)}>
+                      <Printer className="mr-2 h-4 w-4" /> PDF
+                    </button>
+                    <button type="button" className="secondary-btn" onClick={() => downloadMarkdown(result.job_description)}>
                       <Download className="mr-2 h-4 w-4" /> Markdown
                     </button>
-                    <button type="button" className="secondary-btn" onClick={() => result && downloadText(result.job_description)}>
+                    <button type="button" className="secondary-btn" onClick={() => downloadText(result.job_description)}>
                       <FileText className="mr-2 h-4 w-4" /> Text
-                    </button>
-                    <button type="button" className="secondary-btn" onClick={() => result && downloadPdf(result.job_description)}>
-                      <Printer className="mr-2 h-4 w-4" /> PDF
                     </button>
                   </div>
                 ) : null}
@@ -344,24 +396,34 @@ export default function HomePage() {
                     <span className="font-medium text-slate-800">Request ID:</span> {result.request_id}
                   </div>
 
+                  <QualityWarningsPanel warnings={result.quality_warnings} />
+
                   <article className="prose prose-slate max-w-none">
                     {result.job_description.job_title ? (
                       <h1 className="mt-0 text-3xl font-semibold tracking-tight text-slate-900">{result.job_description.job_title}</h1>
                     ) : null}
 
-                    {jdMetadata ? <p className="mt-2 text-sm text-slate-600">{jdMetadata}</p> : null}
+                    {jdMetadata.length > 0 ? (
+                      <dl className="mt-3 space-y-0.5 text-sm text-slate-700">
+                        {jdMetadata.map(({ label, value }) => (
+                          <div key={label}>
+                            <dt className="inline font-semibold text-slate-900">{label}:</dt> <dd className="inline">{value}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
 
-                    {jdSections.map(({ heading, content }) => (
-                      <section key={heading ?? 'closing'} className="mt-6">
-                        {heading ? <h2 className="text-lg font-semibold text-slate-900">{heading}</h2> : null}
+                    {jdSections.map(({ heading, content }, index) => (
+                      <section key={heading ?? `paragraph-${index}`} className="mt-6">
+                        {heading ? <h2 className="text-lg font-semibold text-slate-900">{heading}:</h2> : null}
                         {Array.isArray(content) ? (
                           <ul className="mt-2 list-disc space-y-2 pl-5 text-slate-700">
-                            {content.map((item) => (
-                              <li key={item}>{item}</li>
+                            {content.map((item, itemIndex) => (
+                              <li key={itemIndex}><RichText text={item} /></li>
                             ))}
                           </ul>
                         ) : (
-                          <p className="mt-2 text-slate-700">{content}</p>
+                          <p className="mt-2 text-slate-700"><RichText text={content} /></p>
                         )}
                       </section>
                     ))}
@@ -369,7 +431,7 @@ export default function HomePage() {
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
                     <p className="font-medium text-slate-800">Export this result:</p>
-                    <p className="mt-1">Download markdown, plain text, or PDF for sharing and printing.</p>
+                    <p className="mt-1">Copy it into a job board, or download it as Word, PDF, Markdown or plain text.</p>
                   </div>
                 </div>
               )}
