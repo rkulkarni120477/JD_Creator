@@ -163,6 +163,10 @@ Respond with valid JSON matching the JobDescription schema."""
             lines.append(f"- Company Name: {details.company_name}")
         if details.company_description:
             lines.append(f"- Company Description: {details.company_description}")
+        if details.client_name:
+            lines.append(f"- Client Name: {details.client_name}")
+        if details.client_description:
+            lines.append(f"- Client Description: {details.client_description}")
         if details.client_context:
             lines.append(f"- Client / Project Context: {details.client_context}")
         if details.education:

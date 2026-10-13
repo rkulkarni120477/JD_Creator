@@ -5,7 +5,8 @@
 The JD Creator application is currently running and serving requests.
 
 ### Server Information
-- **URL:** http://127.0.0.1:8000
+- **Backend URL:** http://127.0.0.1:8200
+- **Frontend URL:** http://localhost:3200
 - **Status:** ✅ Active and responding
 - **Health Check:** `GET /health/live` → Returns `{"status":"alive"}`
 
@@ -18,7 +19,7 @@ The JD Creator application is currently running and serving requests.
 
 **Sample Request:**
 ```bash
-curl -X POST http://127.0.0.1:8000/api/jd/generate \
+curl -X POST http://127.0.0.1:8200/api/jd/generate \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Senior Python Developer with 5-8 years of experience in FastAPI, LangChain, and AWS Bedrock. Based in Bengaluru with hybrid work arrangement.",
@@ -117,7 +118,7 @@ GET /health/ready
 ### Option 1: Full application with Bedrock (recommended)
 ```bash
 cd JD_Creator
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8200
 ```
 Settings are read from `.env` (including `AWS_BEARER_TOKEN_BEDROCK` or your AWS credential chain).
 `JD_BEDROCK_MODEL_ID` must be a model that is still active, e.g. `us.anthropic.claude-sonnet-4-5-20250929-v1:0`.
@@ -125,8 +126,8 @@ Settings are read from `.env` (including `AWS_BEARER_TOKEN_BEDROCK` or your AWS 
 ### Option 2: Simplified app (no LLM)
 ```bash
 cd JD_Creator
-python app_simple.py
-# Server runs at http://127.0.0.1:8000
+python -m uvicorn app_simple:app --host 127.0.0.1 --port 8200
+# Server runs at http://127.0.0.1:8200
 ```
 **Note:** `app_simple.py` ignores the role you describe and always returns the same hardcoded developer JD.
 Use it only for UI work, never to evaluate JD quality.
@@ -160,30 +161,52 @@ Use it only for UI work, never to evaluate JD quality.
 ### Run the Next.js frontend against the in-repo FastAPI backend
 
 The Next.js API route forwards generation requests to the FastAPI endpoint at
-`POST http://127.0.0.1:8000/api/jd/generate`. In development, this URL is used
+`POST http://127.0.0.1:8200/api/jd/generate`. In development, this URL is used
 automatically unless `JD_CREATOR_API_URL` is set. Mock mode is off by default.
 
 Start the backend in one terminal:
 
 ```bash
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+python -m uvicorn app.main:app --host 127.0.0.1 --port 8200
 ```
 
 Start the Next.js frontend in another terminal:
 
 ```bash
 npm install
-npm run dev
+npm run dev -- --port 3200
 ```
 
-Open `http://localhost:3000`. Requests from the page go through the Next.js
+Open `http://localhost:3200`. Requests from the page go through the Next.js
 server-side proxy, so the browser does not need direct access to the backend.
 For another backend URL, set `JD_CREATOR_API_URL` in `.env.local` (for example,
-`JD_CREATOR_API_URL=http://127.0.0.1:8000`) and restart Next.js. Set
+`JD_CREATOR_API_URL=http://127.0.0.1:8200`) and restart Next.js. Set
 `JD_CREATOR_USE_MOCK=true` only when intentionally using the frontend sample
 response. The `app_simple.py` backend returns deterministic demo content; use
 `app.main:app` with the required AWS/Bedrock configuration for model-backed
 generation.
+
+### Sign-in configuration
+
+Manual sign-in uses `JD_ADMIN_USERNAME` (defaults to `admin`) and
+`JD_ADMIN_PASSWORD`. Set both in the ignored `.env.local` file; never commit
+local credentials. `NEXTAUTH_SECRET` must also be set to a random secret.
+Microsoft sign-in stays disabled until the Entra app registration is created
+and all `AZURE_AD_*` values are configured.
+
+For Academian SSO, create a **single-tenant** app registration in the Academian
+Microsoft Entra tenant. Add a **Web** redirect URI:
+
+```text
+http://localhost:3200/api/auth/callback/azure-ad
+```
+
+Create a client secret and configure `AZURE_AD_TENANT_ID`,
+`AZURE_AD_CLIENT_ID`, and `AZURE_AD_CLIENT_SECRET` in the server environment.
+Also set `NEXTAUTH_URL=http://localhost:3200` and `NEXTAUTH_SECRET`. The app
+uses the OpenID Connect sign-in scopes and does not need Microsoft Graph access
+for login. Use the equivalent HTTPS callback URI and server-side secrets when
+deploying.
 
 ### To Use with Real Bedrock:
 1. Set up AWS credentials (see `AWS_SETUP.md`)
@@ -192,7 +215,7 @@ generation.
 4. Run using Docker (recommended to avoid version issues):
    ```bash
    docker build -t jd-creator:latest .
-   docker run -p 8000:8000 \
+   docker run -p 8200:8000 \
      -e JD_BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0 \
      -v ~/.aws:/root/.aws:ro \
      jd-creator:latest
@@ -234,15 +257,15 @@ generation.
 ### 1. **Test the API**
 ```bash
 # Generate a JD
-curl -X POST http://127.0.0.1:8000/api/jd/generate \
+curl -X POST http://127.0.0.1:8200/api/jd/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt":"Senior Python Developer with AWS experience","tone":"professional"}'
 ```
 
 ### 2. **Check Health**
 ```bash
-curl http://127.0.0.1:8000/health/live
-curl http://127.0.0.1:8000/health/ready
+curl http://127.0.0.1:8200/health/live
+curl http://127.0.0.1:8200/health/ready
 ```
 
 ### 3. **Run Tests**
@@ -260,9 +283,11 @@ docker build -t jd-creator:latest .
 ## ⚙️ Technical Architecture
 
 ```
-Browser (Port 8000)
+Browser (Port 3200)
     ↓
-FastAPI Application
+Next.js Frontend (Port 3200)
+    ↓
+FastAPI Application (Port 8200)
     ├── Middleware
     │   ├── Request ID injection
     │   ├── Rate limiting

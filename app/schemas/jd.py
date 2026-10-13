@@ -5,7 +5,7 @@ import re
 
 
 class JobDetails(BaseModel):
-    """Optional structured details to supplement the natural-language requirement."""
+    """Optional structured details that take precedence over conflicting natural-language requirements."""
 
     job_title: str | None = Field(None, max_length=200)
     technologies: list[str] = Field(default_factory=list, max_length=30)
@@ -17,6 +17,8 @@ class JobDetails(BaseModel):
     industry: str | None = Field(None, max_length=200)
     company_name: str | None = Field(None, max_length=200)
     company_description: str | None = Field(None, max_length=1000)
+    client_name: str | None = Field(None, max_length=200)
+    client_description: str | None = Field(None, max_length=1000)
     client_context: str | None = Field(None, max_length=1000)  # client, project or initiative the role supports
     education: str | None = Field(None, max_length=500)
     preferred_background: list[str] = Field(default_factory=list, max_length=15)  # sectors/domains, e.g. EdTech

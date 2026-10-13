@@ -4,7 +4,7 @@ import pytest
 
 from app.config import Settings
 from app.schemas.errors import ThrottledException
-from app.schemas.jd import GenerateRequest, JobDescription, JobDetails, QualityReview, ReviewIssue
+from app.schemas.jd import GenerateRequest, JobDescription, JobDetails, QualityReview
 from app.services.bedrock_service import BedrockService
 from app.services.quality_service import QualityService
 
@@ -94,21 +94,16 @@ def test_opening_paragraph_must_exist_and_name_the_company(quality_service):
 
     request = _ba_request(company_name="Academian")
     assert quality_service.rule_checks(request, _good_jd()) == []
-    warnings = quality_service.rule_checks(request, _good_jd(role_summary="We are seeking a Business Analyst."))
+    warnings = quality_service.rule_checks(
+        request,
+        _good_jd(role_summary="We are seeking a **Business Analyst**."),
+    )
     assert _messages(warnings) == ["The opening paragraph does not name the hiring company 'Academian'."]
 
 
-def test_off_domain_industry_words_are_flagged_without_the_model_review(quality_service):
+def test_rule_checks_do_not_use_a_static_domain_word_list(quality_service):
     warnings = quality_service.rule_checks(_ba_request(), _good_jd(closing_statement=AVIATION_CLOSING))
-
-    assert len(warnings) == 1
-    assert warnings[0].section == "closing_statement"
-    assert "'aviation'" in warnings[0].message
-
-
-def test_industry_words_from_the_requirements_are_not_flagged(quality_service):
-    request = GenerateRequest(prompt="Business analyst for an aviation training content pipeline")
-    assert quality_service.rule_checks(request, _good_jd(closing_statement=AVIATION_CLOSING)) == []
+    assert warnings == []
 
 
 def test_placeholders_and_empty_core_sections_are_errors(quality_service):
@@ -157,6 +152,30 @@ async def test_review_reports_off_domain_text_and_drops_invented_excerpts(qualit
     assert "unrelated to this content-pipeline role" in review_warnings[0].message
     sent = review_service.invoke_with_structured_output.call_args.args[0][1]["content"]
     assert "aviation training" in sent and "Business analyst for a content pipeline" in sent
+
+
+@pytest.mark.asyncio
+async def test_structured_details_override_conflicting_natural_language_for_review(quality_service, review_service):
+    request = GenerateRequest(
+        prompt="Senior Python Developer based in Bengaluru with a hybrid work arrangement",
+        details=JobDetails(
+            job_title="Senior Developer",
+            location="India",
+            work_arrangement="remote",
+        ),
+    )
+
+    warnings = await quality_service.check(
+        request,
+        _good_jd(job_title="Senior Developer", location="India", work_arrangement="Remote"),
+    )
+
+    assert warnings == []
+    sent = review_service.invoke_with_structured_output.call_args.args[0][1]["content"]
+    assert "authoritative" in sent.lower()
+    assert "never use a conflict with an explicit structured value as an issue" in sent.lower()
+    assert "- Location: India" in sent
+    assert "- Work Arrangement: remote" in sent
 
 
 @pytest.mark.asyncio

@@ -27,19 +27,6 @@ _LIST_SECTIONS = (
 )
 _QUALIFICATION_SECTIONS = ("required_qualifications", "education_requirements", "preferred_qualifications")
 
-# Industry words that signal text left over from another posting, e.g. "aviation training" in a content-pipeline JD.
-# Flagged only when the word appears nowhere in the supplied requirements. Words with common generic senses
-# ("pilot programme", "data mining", "construction of dashboards") are deliberately left out.
-_DOMAIN_TERMS = frozenset(
-    {
-        "aviation", "aerospace", "airline", "airlines", "aircraft",
-        "healthcare", "hospital", "hospitals", "clinical", "nursing", "pharmaceutical", "pharma",
-        "banking", "insurance", "automotive", "retail", "hospitality", "petroleum",
-        "maritime", "military", "defense", "defence", "agriculture", "telecom", "telecommunications", "casino",
-    }
-)
-
-
 def _normalize(text: str) -> str:
     return " ".join(re.sub(r"[^a-z0-9 ]", " ", text.lower()).split())
 
@@ -75,7 +62,6 @@ class QualityService:
             *self._check_supplied_values(request, jd),
             *self._check_placeholders(jd),
             *self._check_duplicates(jd),
-            *self._check_off_domain_terms(request, jd),
         ]
 
     @staticmethod
@@ -251,26 +237,6 @@ class QualityService:
                 )
         return warnings
 
-    @staticmethod
-    def _check_off_domain_terms(request: GenerateRequest, jd: JobDescription) -> list[QualityWarning]:
-        supplied = _tokens(" ".join([request.prompt, JDService.build_explicit_fields(request.details)]))
-        warnings = []
-        for field, value in jd.model_dump().items():
-            texts = value if isinstance(value, list) else [value]
-            found = set()
-            for text in texts:
-                if isinstance(text, str):
-                    found |= (_tokens(text) & _DOMAIN_TERMS) - supplied
-            for term in sorted(found):
-                warnings.append(
-                    QualityWarning(
-                        severity="warning",
-                        section=field,
-                        message=f"Mentions '{term}', which does not appear in the supplied requirements; it may be left over from another job description.",
-                    )
-                )
-        return warnings
-
     # ------------------------------------------------------------------
     # Model-based consistency review
     # ------------------------------------------------------------------
@@ -287,11 +253,11 @@ class QualityService:
             {"role": "system", "content": self._load_review_prompt()},
             {
                 "role": "user",
-                "content": f"""Supplied requirements:
+                "content": f"""Authoritative optional details:
 
 {JDService.build_explicit_fields(request.details)}
 
-Natural language requirements:
+Natural-language requirements (use only when the corresponding structured detail is not supplied; never use a conflict with an explicit structured value as an issue):
 {request.prompt}
 
 Job description to check (JSON):

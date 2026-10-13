@@ -10,6 +10,19 @@ html {
   scroll-behavior: smooth;
 }
 
+@keyframes progress-indeterminate {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(310%);
+  }
+}
+
+.progress-indicator {
+  animation: progress-indeterminate 1.2s ease-in-out infinite;
+}
+
 body {
   @apply bg-slate-100 text-slate-900 antialiased;
   font-family: Arial, Helvetica, sans-serif;
@@ -34,6 +47,12 @@ body {
 
   .secondary-btn {
     @apply inline-flex items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indicator {
+    animation-duration: 2.5s;
   }
 }
 

@@ -43,6 +43,8 @@ type FormState = {
   industry: string;
   company_name: string;
   company_description: string;
+  client_name: string;
+  client_description: string;
   client_context: string;
   education: string;
   preferred_background: string;
@@ -66,6 +68,8 @@ const initialState: FormState = {
   industry: '',
   company_name: '',
   company_description: '',
+  client_name: '',
+  client_description: '',
   client_context: '',
   education: '',
   preferred_background: '',
@@ -93,12 +97,43 @@ function splitList(value: string): string[] {
     .filter(Boolean);
 }
 
+type LookupStatus = {
+  state: 'idle' | 'searching' | 'found' | 'not-found' | 'error';
+  sourceUrl?: string;
+  message?: string;
+};
+
+type PublicDescription = {
+  description: string;
+  sourceUrl: string;
+};
+
+async function lookupPublicDescription(name: string, signal: AbortSignal): Promise<PublicDescription> {
+  const response = await fetch(`/api/company/lookup?name=${encodeURIComponent(name)}`, { signal });
+  const data = (await response.json().catch(() => null)) as
+    | { description?: unknown; sourceUrl?: unknown; message?: unknown }
+    | null;
+  if (!response.ok) {
+    throw new Error(
+      typeof data?.message === 'string'
+        ? data.message
+        : `Online lookup returned an unexpected response (HTTP ${response.status}).`
+    );
+  }
+  if (!data || typeof data.description !== 'string' || typeof data.sourceUrl !== 'string') {
+    throw new Error('Online lookup returned an invalid profile.');
+  }
+  return { description: data.description, sourceUrl: data.sourceUrl };
+}
+
 export default function HomePage() {
   const [form, setForm] = useState<FormState>(initialState);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [result, setResult] = useState<GenerationResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [companyLookup, setCompanyLookup] = useState<LookupStatus>({ state: 'idle' });
+  const [clientLookup, setClientLookup] = useState<LookupStatus>({ state: 'idle' });
 
   const promptLengthLabel = useMemo(() => `${form.prompt.trim().length} / ${Math.max(MIN_PROMPT_LENGTH, 5000)}`, [form.prompt]);
 
@@ -128,32 +163,92 @@ export default function HomePage() {
     setIsLoading(true);
 
     try {
+      const submitForm = { ...form };
+      const lookups: Promise<void>[] = [];
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 12000);
+
+      if (submitForm.company_name.trim() && !submitForm.company_description.trim()) {
+        setCompanyLookup({ state: 'searching' });
+        lookups.push(
+          lookupPublicDescription(submitForm.company_name.trim(), controller.signal)
+            .then((profile) => {
+              if (!submitForm.company_description.trim()) {
+                submitForm.company_description = profile.description;
+              }
+              setCompanyLookup({ state: 'found', sourceUrl: profile.sourceUrl });
+            })
+            .catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : 'Online lookup failed.';
+              setCompanyLookup({
+                state: message.includes('No public profile') || message.includes('No unambiguous') ? 'not-found' : 'error',
+                message
+              });
+            })
+        );
+      }
+
+      if (
+        submitForm.client_name.trim() &&
+        (!submitForm.client_description.trim() || !submitForm.client_context.trim())
+      ) {
+        setClientLookup({ state: 'searching' });
+        lookups.push(
+          lookupPublicDescription(submitForm.client_name.trim(), controller.signal)
+            .then((profile) => {
+              if (!submitForm.client_description.trim()) {
+                submitForm.client_description = profile.description;
+              }
+              if (!submitForm.client_context.trim()) {
+                submitForm.client_context = `${submitForm.client_name.trim()}: ${profile.description}`.slice(0, 1000);
+              }
+              setClientLookup({ state: 'found', sourceUrl: profile.sourceUrl });
+            })
+            .catch((error: unknown) => {
+              const message = error instanceof Error ? error.message : 'Online lookup failed.';
+              setClientLookup({
+                state: message.includes('No public profile') || message.includes('No unambiguous') ? 'not-found' : 'error',
+                message
+              });
+            })
+        );
+      }
+
+      try {
+        await Promise.all(lookups);
+      } finally {
+        window.clearTimeout(timeout);
+      }
+      setForm(submitForm);
+
       const payload = {
-        prompt: form.prompt.trim(),
+        prompt: submitForm.prompt.trim(),
         details: {
-          job_title: form.job_title.trim() || undefined,
-          technologies: splitList(form.technologies),
-          experience_min: form.experience_min ? Number(form.experience_min) : undefined,
-          experience_max: form.experience_max ? Number(form.experience_max) : undefined,
-          location: form.location.trim() || undefined,
-          work_arrangement: form.work_arrangement || undefined,
+          job_title: submitForm.job_title.trim() || undefined,
+          technologies: splitList(submitForm.technologies),
+          experience_min: submitForm.experience_min ? Number(submitForm.experience_min) : undefined,
+          experience_max: submitForm.experience_max ? Number(submitForm.experience_max) : undefined,
+          location: submitForm.location.trim() || undefined,
+          work_arrangement: submitForm.work_arrangement || undefined,
           // Keep the option order stable so "contract, part-time" reads the same regardless of click order
           employment_type:
             employmentTypeOptions
-              .filter((option) => form.employment_types.includes(option.value))
+              .filter((option) => submitForm.employment_types.includes(option.value))
               .map((option) => option.value)
               .join(', ') || undefined,
-          industry: form.industry.trim() || undefined,
-          company_name: form.company_name.trim() || undefined,
-          company_description: form.company_description.trim() || undefined,
-          client_context: form.client_context.trim() || undefined,
-          education: form.education.trim() || undefined,
-          preferred_background: splitList(form.preferred_background),
-          collaborators: splitList(form.collaborators),
-          engagement_details: form.engagement_details.trim() || undefined,
-          work_environment: form.work_environment.trim() || undefined
+          industry: submitForm.industry.trim() || undefined,
+          company_name: submitForm.company_name.trim() || undefined,
+          company_description: submitForm.company_description.trim() || undefined,
+          client_name: submitForm.client_name.trim() || undefined,
+          client_description: submitForm.client_description.trim() || undefined,
+          client_context: submitForm.client_context.trim() || undefined,
+          education: submitForm.education.trim() || undefined,
+          preferred_background: splitList(submitForm.preferred_background),
+          collaborators: splitList(submitForm.collaborators),
+          engagement_details: submitForm.engagement_details.trim() || undefined,
+          work_environment: submitForm.work_environment.trim() || undefined
         },
-        tone: form.tone
+        tone: submitForm.tone
       };
 
       const response = await fetch('/api/jd/generate', {
@@ -174,8 +269,8 @@ export default function HomePage() {
 
       const normalized = {
         request_id: String(data.request_id || 'generated'),
-        prompt: form.prompt.trim(),
-        company_name: form.company_name.trim() || undefined,
+        prompt: submitForm.prompt.trim(),
+        company_name: submitForm.company_name.trim() || undefined,
         job_description: normalizeJobDescription(data.job_description),
         assumptions: Array.isArray(data.assumptions)
           ? data.assumptions.filter((entry: unknown): entry is string => typeof entry === 'string')
@@ -214,6 +309,8 @@ export default function HomePage() {
 
   function handleClear() {
     setForm(initialState);
+    setCompanyLookup({ state: 'idle' });
+    setClientLookup({ state: 'idle' });
     setError(null);
     setResult(null);
   }
@@ -312,6 +409,24 @@ export default function HomePage() {
                   <div className="sm:col-span-2">
                     <label className="label" htmlFor="company_description">Company description</label>
                     <textarea id="company_description" value={form.company_description} onChange={(e) => updateField('company_description', e.target.value)} rows={4} className="input resize-none" placeholder="Brief description of the company and stage" />
+                    <p className="mt-1 text-xs text-slate-500" role="status">
+                      {companyLookup.state === 'searching' ? 'Searching online…' : null}
+                      {companyLookup.state === 'found' && companyLookup.sourceUrl ? <>Autofilled from <a className="underline" href={companyLookup.sourceUrl} target="_blank" rel="noreferrer">Wikipedia</a>. Verify and edit as needed.</> : null}
+                      {companyLookup.state === 'not-found' || companyLookup.state === 'error' ? companyLookup.message : null}
+                    </p>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="client_name">Client name</label>
+                    <input id="client_name" value={form.client_name} onChange={(e) => updateField('client_name', e.target.value)} maxLength={200} className="input" placeholder="Client organization" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="label" htmlFor="client_description">Client description</label>
+                    <textarea id="client_description" value={form.client_description} onChange={(e) => updateField('client_description', e.target.value)} rows={3} maxLength={1000} className="input resize-none" placeholder="Brief description of the client" />
+                    <p className="mt-1 text-xs text-slate-500" role="status">
+                      {clientLookup.state === 'searching' ? 'Searching online…' : null}
+                      {clientLookup.state === 'found' && clientLookup.sourceUrl ? <>Autofilled from <a className="underline" href={clientLookup.sourceUrl} target="_blank" rel="noreferrer">Wikipedia</a>. Verify and edit as needed.</> : null}
+                      {clientLookup.state === 'not-found' || clientLookup.state === 'error' ? clientLookup.message : null}
+                    </p>
                   </div>
                   <div className="sm:col-span-2">
                     <label className="label" htmlFor="client_context">Client / project context</label>
@@ -349,9 +464,24 @@ export default function HomePage() {
                 </select>
               </div>
 
+              {isLoading && (
+                <div className="no-print space-y-2" aria-live="polite">
+                  <p className="text-sm font-medium text-red-700">Looking up details and generating your job description…</p>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-red-100"
+                    role="progressbar"
+                    aria-label="Generating job description"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                  >
+                    <div className="progress-indicator h-full w-1/3 rounded-full bg-red-600" />
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-wrap gap-3 no-print">
                 <button type="submit" className="primary-btn" disabled={isLoading}>
-                  {isLoading ? 'Generating…' : 'Generate JD'}
+                  {isLoading ? 'Preparing…' : 'Generate JD'}
                 </button>
                 <button type="button" className="secondary-btn" onClick={handleClear}>
                   <Trash2 className="mr-2 h-4 w-4" /> Clear

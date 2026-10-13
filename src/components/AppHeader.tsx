@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { AuthControls } from '@/components/AuthControls';
 
 export function AppHeader() {
   return (
@@ -23,6 +24,8 @@ export function AppHeader() {
             Professional job descriptions, tailored to your hiring needs.
           </p>
         </div>
+
+        <AuthControls />
       </div>
     </header>
   );

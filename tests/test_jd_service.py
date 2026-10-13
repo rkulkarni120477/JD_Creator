@@ -126,6 +126,10 @@ def test_new_structured_fields_reach_prompt(jd_service):
         prompt="Business analyst for a content pipeline modernization",
         details=JobDetails(
             employment_type="Contract, Part-time",
+            company_name="Academian",
+            company_description="Education technology company",
+            client_name="Pearson",
+            client_description="Education publishing and assessment company",
             client_context="Client is modernizing its content pipeline",
             education="Bachelor's in Statistics",
             preferred_background=["EdTech", "publishing"],
@@ -138,6 +142,10 @@ def test_new_structured_fields_reach_prompt(jd_service):
     user_message = jd_service._build_messages(request)[1]["content"]
 
     assert "- Employment Type: contract, part-time" in user_message
+    assert "- Company Name: Academian" in user_message
+    assert "- Company Description: Education technology company" in user_message
+    assert "- Client Name: Pearson" in user_message
+    assert "- Client Description: Education publishing and assessment company" in user_message
     assert "- Client / Project Context: Client is modernizing its content pipeline" in user_message
     assert "- Education: Bachelor's in Statistics" in user_message
     assert "- Preferred Sector Background: EdTech, publishing" in user_message

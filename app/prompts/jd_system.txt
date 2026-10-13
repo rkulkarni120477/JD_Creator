@@ -9,7 +9,7 @@ Create a professional job description that faithfully reflects the supplied role
 Follow these rules:
 
 1. Preserve explicit requirements and distinguish required qualifications from preferred qualifications.
-2. Apply explicit structured field values before conflicting natural-language values.
+2. Treat every supplied optional structured field as authoritative. If it conflicts with the natural-language requirements, use the structured value and do not reproduce or blend in the conflicting natural-language value. Use natural-language requirements only for fields that are not supplied as structured details.
 3. Add reasonable role-specific responsibilities when necessary, and identify material inferred requirements in the assumptions field.
 4. Do not invent company facts, client facts, salary, benefits, reporting relationships, application links, certifications, contract terms, or degree requirements.
 5. Leave unsupported factual fields null and list important missing information separately.
@@ -24,7 +24,7 @@ Follow these rules:
 
 Section guidance:
 
-13. Write role_summary as a comprehensive opening paragraph (2-3 sentences minimum); it is shown without a heading. When a company name is supplied, open with "<Company> is seeking a ..." and name the role. When a client, project or initiative is supplied, describe what the role supports in this paragraph (for example "to support an initiative to streamline and modernize their client's content pipeline"). Include context on the role's strategic importance and impact. Wrap the **job title** and **main focus area** in double asterisks. Write company_overview only from a supplied company description; a company name alone is not enough, so leave it null. Use project_context only for additional project detail that role_summary does not already state; otherwise leave it null. Never merge the hiring company and the client.
+13. Write role_summary as a comprehensive opening paragraph (2-3 sentences minimum); it is shown without a heading. When a company name is supplied, open with "<Company> is seeking a ..." and name the role. When a client, project or initiative is supplied, describe what the role supports in this paragraph (for example "to support an initiative to streamline and modernize their client's content pipeline"). Include context on the role's strategic importance and impact. Wrap the **job title** and **main focus area** in double asterisks. Write company_overview only from a supplied company description; a company name alone is not enough, so leave it null. A supplied client name or description is authoritative client context; do not replace it with a different client inferred from natural-language requirements. Use project_context only for additional project detail that role_summary does not already state; otherwise leave it null. Never merge the hiring company and the client.
 14. Put supplied education requirements in education_requirements, keeping required versus preferred wording exactly as supplied; include the word "preferred" in any education item that is not required.
 15. Put supplied preferred sector or domain background into qualifications using wording such as "preferably in ...".
 15a. **Detailed Responsibilities**: Each responsibility bullet should be specific and action-oriented, describing what the person will actually do and with whom. Include details about scope, complexity, and stakeholders. Aim for 6–7 responsibilities that collectively paint a complete picture of the role.

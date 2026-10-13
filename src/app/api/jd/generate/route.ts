@@ -67,7 +67,7 @@ export async function POST(request: Request) {
 
     const apiBaseUrl =
       process.env.JD_CREATOR_API_URL ||
-      (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8000' : undefined);
+      (process.env.NODE_ENV === 'development' ? 'http://127.0.0.1:8200' : undefined);
     if (!apiBaseUrl) {
       return NextResponse.json(
         {
@@ -92,7 +92,7 @@ export async function POST(request: Request) {
     } catch {
       return NextResponse.json(
         {
-          message: 'Unable to reach the JD Creator backend. Start the backend on port 8000 or set JD_CREATOR_API_URL.',
+          message: 'Unable to reach the JD Creator backend. Start the backend on port 8200 or set JD_CREATOR_API_URL.',
           code: 'BACKEND_UNAVAILABLE',
           request_id: 'backend-unavailable'
         },

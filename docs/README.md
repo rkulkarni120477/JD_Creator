@@ -138,6 +138,8 @@ Then open **http://localhost:8000** in your browser.
 - API at `/api/jd/generate`
 - Health checks at `/health/live` and `/health/ready`
 - Hot reload on code changes
+- Optional structured details take precedence over conflicting prompt text.
+- Company and client descriptions can be autofilled from matching Wikipedia profiles; review the linked source and edit the text as needed.
 
 ### Run tests
 
